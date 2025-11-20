@@ -337,6 +337,19 @@ class DataProcessor:
             logger.error(f'每日数据处理失败: {e}')
             return False
 
+    # 在update_processed_data_daily()方法之后添加
+    def process_daily_data(self):
+        """
+        处理每日数据，为选股策略准备数据
+        该方法是update_processed_data_daily()的别名，保持API兼容性
+        
+        Returns:
+            bool: 处理是否成功
+        """
+        logger.info("开始处理每日数据...")
+        return self.update_processed_data_daily()
+
+
 # 测试代码
 if __name__ == "__main__":
     # 创建数据处理器实例

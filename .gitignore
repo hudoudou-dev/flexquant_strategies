@@ -1,0 +1,35 @@
+# 忽略logs目录下的所有文件
+/logs/
+
+# 保留data目录结构但忽略其中所有文件
+/data/
+
+# 以下是Python项目的标准忽略规则（可选添加）
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+
+# 忽略临时文件
+*.swp
+*.swo
+*~
+
+# 忽略IDE相关文件
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 忽略操作系统文件
+.DS_Store
+Thumbs.db
+
+# 忽略配置文件中的敏感信息（如果适用）
+*.env
+config/credentials.json

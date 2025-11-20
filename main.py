@@ -1,60 +1,74 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# 这个main.py文件具有以下特点：
-
-# 简洁明了：避免了过于复杂的实现，专注于核心功能集成
-# 模块化设计：清晰地调用我们之前实现的各个模块
-# 命令行接口：使用子命令模式提供多种功能入口
-# 完整功能覆盖：包含数据获取、策略选股、回测、投资组合管理和调度器启动
-# 友好提示：提供详细的使用说明和示例命令
-# 使用方法非常简单，您可以通过不同的子命令来执行不同的功能：
-
-# 获取数据：python main.py fetch --daily 或 python main.py fetch --full
-# 执行选股：python main.py select --top 10
-# 运行回测：python main.py backtest
-# 管理投资组合：python main.py portfolio --status
-# 启动调度器：python main.py scheduler
-
-# 现在您可以使用以下命令来测试新功能：
-
-# 自动判断最近抓取日期并追加数据：
-
-
-# bash
-# python main.py fetch --incremental
-# 这个命令会自动检查现有数据中最新的日期，然后只获取从该日期之后到今天的数据。
-
-# 获取特定股票的数据：
+'''
+                       _oo0oo_
+                      o8888888o
+                      88" . "88
+                      (| -_- |)
+                      0\  =  /0
+                    ___/`---'\___
+                  .' \\|     |// '.
+                 / \\|||  :  |||// \
+                / _||||| -:- |||||- \
+               |   | \\\  - /// |   |
+               | \_|  ''\---/''  |_/ |
+               \  .-\__  '-'  ___/-. /
+             ___'. .'  /--.--\  `. .'___
+          ."" '<  `.___\_<|>_/___.' >' "".
+         | | :  `- \`.;`\ _ /`;.`/ - ` : | |
+         \  \ `_.   \_ __\ /__ _/   .-` /  /
+     =====`-.____`.___ \_____/___.-`___.-'=====
+                       `=---='
 
 
-# bash
-# python main.py fetch --stocks 000001 000002 600000
-# 这个命令会只获取指定的几只股票的数据。
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# 从文件中读取股票代码并获取数据：
+           佛祖保佑     永不宕机     永无BUG
 
-
-# bash
-# python main.py fetch --stock-file stock_list.txt
-# 您需要创建一个stock_list.txt文件，每行一个股票代码。
-
-# 指定日期范围获取特定股票数据：
-
-
-# bash
-# python main.py fetch --stocks 000001 000002 --start-date 2023-01-01 --end-date 2023-12-31
-# 这些新功能完全满足了您的需求：可以自动判断最近抓取日期进行追加更新，也可以方便地进行小规模测试，无论是直接指定股票代码还是从文件读取。同时，我保留了原有的完整数据获取和每日更新功能。
+       佛曰:  
+               写字楼里写字间，写字间里程序员；  
+               程序人员写程序，又拿程序换酒钱。  
+               酒醒只在网上坐，酒醉还来网下眠；  
+               酒醉酒醒日复日，网上网下年复年。  
+               但愿老死电脑间，不愿鞠躬老板前；  
+               奔驰宝马贵者趣，公交自行程序员。  
+               别人笑我忒疯癫，我笑自己命太贱；  
+               不见满街漂亮妹，哪个归得程序员？
+'''
 
 """
-FlexQuant Strategies - 主入口
-
-功能描述: 系统主入口，提供命令行接口，集成数据获取、处理、策略、回测和调度功能
-作者: FlexQuant Team
-创建时间: 2024-01-15
-修改时间: 2024-01-15
-修改备注: 初始版本，实现基础功能集成
+@Author:            hudoudou-dev
+@Email:             humengnju@qq.com
+@Create Time:       2025-11-20
+@Last Modified:     2025-11-20
+@Modified By:       hudoudou-dev
+@Version:           1.0
+@Description:       FlexQuant-Strategies, main entrance with command line interface integrating data fetch, processing, strategy, backtesting, and scheduling functionalities.
+@Notes:             pass
+@History:
+                    v1.0, create.
 """
+
+# 1. 获取数据:
+#    python main.py fetch --daily, python main.py fetch --full
+#    python main.py fetch --incremental # 增量获取数据
+#    python main.py fetch --stocks 000001 000002 600000
+#    python main.py fetch --stock-file stock_list.txt  # stock_list.txt文件，每行一个股票代码
+#    python main.py fetch --stocks 000001 000002 --start-date 2023-01-01 --end-date 2023-12-31
+
+# 2. 执行选股：
+#    python main.py select --top 10
+
+# 3. 运行回测：
+#    python main.py backtest
+
+# 4. 管理投资组合：
+#    python main.py portfolio --status
+
+# 5. 启动调度器：
+#    python main.py scheduler
+
 
 import os
 import sys
@@ -62,10 +76,8 @@ import argparse
 import yaml
 import logging
 
-# 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# 导入自定义模块
 from src.data_fetch import DataFetcher
 from src.data_processor import DataProcessor
 from src.strategy import FlexStrategy
@@ -73,7 +85,6 @@ from src.backtester import Backtester
 from src.portfolio import PortfolioManager
 from src.scheduler import StrategyScheduler
 
-# 配置日志
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -85,27 +96,19 @@ logging.basicConfig(
 logger = logging.getLogger('main')
 
 
-def load_config(config_path=None):
+def ensure_directories():
     """
-    加载配置文件
-    
-    Args:
-        config_path: 配置文件路径
-        
-    Returns:
-        dict: 配置字典
+    确保必要的目录存在
     """
-    if config_path is None:
-        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config', 'config.yaml')
+    directories = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'raw_data'),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'processed_data'),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'portfolio_data'),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+    ]
     
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        logger.info(f"成功加载配置文件: {config_path}")
-        return config
-    except Exception as e:
-        logger.error(f"加载配置文件失败: {str(e)}")
-        return {}
+    for directory in directories:
+        os.makedirs(directory, exist_ok=True)
 
 
 def parse_arguments():
@@ -115,15 +118,20 @@ def parse_arguments():
     Returns:
         argparse.Namespace: 解析后的参数
     """
-    parser = argparse.ArgumentParser(description='FlexQuant股票策略系统')
+    parser = argparse.ArgumentParser(description='FlexQuant-Strategies')
     
     # 子命令解析器
     subparsers = parser.add_subparsers(dest='mode', help='运行模式')
-    
+
     # 数据获取模式
     fetch_parser = subparsers.add_parser('fetch', help='获取股票数据')
     fetch_parser.add_argument('--full', action='store_true', help='执行完整数据获取')
     fetch_parser.add_argument('--daily', action='store_true', help='执行每日数据更新')
+    fetch_parser.add_argument('--incremental', action='store_true', help='增量获取数据')
+    fetch_parser.add_argument('--stocks', nargs='+', help='指定股票代码列表')
+    fetch_parser.add_argument('--start-date', type=str, help='开始日期 (YYYY-MM-DD)')
+    fetch_parser.add_argument('--end-date', type=str, help='结束日期 (YYYY-MM-DD)')
+    fetch_parser.add_argument('--stock-file', type=str, help='从文件中读取股票代码列表')
     
     # 策略选股模式
     select_parser = subparsers.add_parser('select', help='执行策略选股')
@@ -152,19 +160,28 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def ensure_directories():
+
+def load_config(config_path=None):
     """
-    确保必要的目录存在
-    """
-    directories = [
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'raw_data'),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'processed_data'),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'portfolio_data'),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
-    ]
+    加载配置文件
     
-    for directory in directories:
-        os.makedirs(directory, exist_ok=True)
+    Args:
+        config_path: 配置文件路径
+        
+    Returns:
+        dict: 配置字典
+    """
+    if config_path is None:
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config', 'config.yaml')
+    
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        logger.info(f"成功加载配置文件: {config_path}")
+        return config
+    except Exception as e:
+        logger.error(f"加载配置文件失败: {str(e)}")
+        return {}
 
 
 def run_data_fetch(args, config):
@@ -183,8 +200,36 @@ def run_data_fetch(args, config):
     elif args.daily:
         logger.info("开始执行每日数据更新...")
         data_fetcher.update_daily_data()
+    elif args.incremental:
+        logger.info("开始执行增量数据获取...")
+        data_fetcher.fetch_incremental_data()
+    elif args.stocks:
+        logger.info(f"开始获取指定股票数据: {', '.join(args.stocks)}")
+        # 支持指定日期范围
+        start_date = args.start_date if hasattr(args, 'start_date') else None
+        end_date = args.end_date if hasattr(args, 'end_date') else None
+        data_fetcher.fetch_specific_stocks(args.stocks, start_date, end_date)
+    elif args.stock_file:
+        if os.path.exists(args.stock_file):
+            try:
+                with open(args.stock_file, 'r', encoding='utf-8') as f:
+                    stock_codes = [line.strip() for line in f if line.strip()]
+                logger.info(f"开始从文件获取股票数据，共 {len(stock_codes)} 只股票")
+                # 支持指定日期范围
+                start_date = args.start_date if hasattr(args, 'start_date') else None
+                end_date = args.end_date if hasattr(args, 'end_date') else None
+                data_fetcher.fetch_specific_stocks(stock_codes, start_date, end_date)
+            except Exception as e:
+                logger.error(f"读取股票代码文件失败: {str(e)}")
+        else:
+            logger.error(f"股票代码文件不存在: {args.stock_file}")
     else:
-        logger.info("请指定数据获取类型: --full 或 --daily")
+        logger.info("请指定数据获取类型:")
+        logger.info("  --full      - 执行完整数据获取")
+        logger.info("  --daily     - 执行每日数据更新")
+        logger.info("  --incremental - 增量获取数据")
+        logger.info("  --stocks    - 指定股票代码列表")
+        logger.info("  --stock-file - 从文件中读取股票代码列表")
 
 
 def run_strategy_select(args, config):
@@ -195,13 +240,26 @@ def run_strategy_select(args, config):
         args: 命令行参数
         config: 配置字典
     """
-    # 首先确保数据已处理
+    # 初始化数据处理器
     data_processor = DataProcessor(config=config.get('data_processor', {}))
+    
+    # 处理每日数据
+    logger.info("处理每日数据...")
     data_processor.process_daily_data()
     
-    # 执行选股策略
-    strategy = FlexStrategy(config=config.get('strategy', {}))
-    candidates = strategy.get_candidate_stocks()
+    # 初始化策略
+    strategy = FlexStrategy(data_processor)
+    
+    # 获取候选股票
+    # 使用最近90天作为时间范围
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+    
+    logger.info(f"获取候选股票 (日期范围: {start_date} 至 {end_date})...")
+    candidates = strategy.get_candidate_stocks(start_date, end_date)
+    
+    # 评分和排序股票
+    logger.info("对候选股票进行评分和排序...")
     top_stocks = strategy.score_and_rank_stocks(candidates)[:args.top]
     
     # 输出结果
@@ -304,7 +362,7 @@ def run_scheduler(args, config):
 
 def main():
     """
-    主函数
+    main
     """
     # 确保必要的目录存在
     ensure_directories()

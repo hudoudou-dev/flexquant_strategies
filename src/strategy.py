@@ -440,6 +440,78 @@ class FlexStrategy:
         filtered_stocks = self.filter_stocks_by_conditions(stocks_data, date)
         return filtered_stocks[:top_n]
     
+    def score_and_rank_stocks(self, candidates):
+        """
+        对候选股票进行评分和排序
+        
+        Args:
+            candidates (dict or list): 候选股票数据字典或列表
+                如果是字典，格式为 {code: df}，df为股票数据DataFrame
+                如果是列表，格式为 [(code, df), ...]
+                
+        Returns:
+            list: 排序后的股票列表，每个元素为字典 {'code': str, 'name': str, 'score': float, ...}
+        """
+        scored_stocks = []
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        
+        try:
+            # 处理不同类型的输入
+            if isinstance(candidates, dict):
+                stocks_to_process = [(code, df) for code, df in candidates.items()]
+            elif isinstance(candidates, list):
+                stocks_to_process = candidates
+            else:
+                logger.error(f"候选股票数据格式错误: {type(candidates)}")
+                return []
+            
+            # 为每只股票评分
+            for code, df in stocks_to_process:
+                try:
+                    # 获取最新的可用数据
+                    if isinstance(df, pd.DataFrame) and not df.empty:
+                        # 尝试获取当前日期或最新日期的数据
+                        if 'date' in df.columns:
+                            daily_data = df[df['date'] <= current_date].sort_values('date', ascending=False).iloc[0]
+                        elif '日期' in df.columns:
+                            daily_data = df.sort_values('日期', ascending=False).iloc[0]
+                        else:
+                            daily_data = df.iloc[0]
+                        
+                        # 计算评分
+                        score = self.score_stock(code, daily_data)
+                        
+                        # 获取股票名称（如果有）
+                        name = daily_data.get('name', daily_data.get('股票名称', code))
+                        
+                        # 构建结果字典
+                        stock_info = {
+                            'code': code,
+                            'name': name,
+                            'score': score,
+                            'price': daily_data.get('close', daily_data.get('收盘价', 0)),
+                            'date': daily_data.get('date', daily_data.get('日期', current_date))
+                        }
+                        
+                        # 添加涨停次数信息（如果有）
+                        if hasattr(daily_data, 'limit_up_count'):
+                            stock_info['limit_up_count'] = daily_data['limit_up_count']
+                        
+                        scored_stocks.append(stock_info)
+                except Exception as e:
+                    logger.error(f"评分股票 {code} 时出错: {str(e)}")
+                    continue
+            
+            # 按评分降序排序
+            scored_stocks.sort(key=lambda x: x['score'], reverse=True)
+            
+            logger.info(f"完成股票评分和排序，处理了 {len(scored_stocks)} 只股票")
+            return scored_stocks
+            
+        except Exception as e:
+            logger.error(f"评分和排序股票时发生错误: {str(e)}")
+            return []
+
     def evaluate_stock_performance(self, code, start_date, end_date):
         """
         评估特定股票在指定时间段内的表现

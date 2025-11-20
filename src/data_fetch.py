@@ -11,7 +11,7 @@ Author:
 Created: YYYY-MM-DD
 Last Modified: YYYY-MM-DD
 Modification Notes: Initial creation, implemented multi-source stock data fetching functionality
-"""
+
 
 
 # data_fetch.py 功能概述：
@@ -23,14 +23,18 @@ Modification Notes: Initial creation, implemented multi-source stock data fetchi
 # 支持批量获取所有股票历史数据
 # 实现了每日数据更新功能
 
+
+"""
+
 import akshare as ak
 import baostock as bs
+import tushare as ts
 import pandas as pd
 import os
 import time
 from datetime import datetime, timedelta
 import logging
-import tushare as ts
+
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -328,6 +332,141 @@ class DataFetcher:
                 time.sleep(0.5)
         
         logger.info(f'每日数据更新完成：成功更新 {success_count} 只股票')
+        return success_count
+
+    def fetch_all_data(self, start_date=None, end_date=None):
+        """
+        获取所有股票的历史数据（完整模式）
+        :param start_date: 开始日期，默认为空（从配置或默认值获取）
+        :param end_date: 结束日期，默认为今天
+        :return: 成功获取的股票数量
+        """
+        # 如果未提供开始日期，使用默认值（例如一年前）
+        if start_date is None:
+            start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+        
+        if end_date is None:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+        
+        logger.info(f'开始全量获取所有股票数据，日期范围：{start_date} 至 {end_date}')
+        
+        # 调用现有的fetch_all_stocks_history方法
+        success_codes = self.fetch_all_stocks_history(start_date, end_date)
+        
+        logger.info(f'全量数据获取完成，成功获取 {len(success_codes)} 只股票')
+        return len(success_codes)
+    
+    def fetch_incremental_data(self, start_date=None, end_date=None):
+        """
+        增量获取股票数据，只获取最新的数据
+        :param start_date: 开始日期，默认为空（自动计算）
+        :param end_date: 结束日期，默认为今天
+        :return: 成功更新的股票数量
+        """
+        # 如果未提供日期，使用自动计算的方式
+        if end_date is None:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+        
+        logger.info(f'开始增量更新股票数据，日期范围：{start_date} 至 {end_date}')
+        
+        success_count = 0
+        
+        # 遍历所有已有的股票数据文件
+        for filename in os.listdir(self.raw_data_dir):
+            if filename.endswith('.csv'):
+                stock_code = filename[:-4]
+                file_path = os.path.join(self.raw_data_dir, filename)
+                
+                try:
+                    # 读取已有数据
+                    existing_df = pd.read_csv(file_path)
+                    
+                    # 确定增量开始日期
+                    if start_date is None:
+                        # 获取最后一条记录的日期
+                        last_date = pd.to_datetime(existing_df['日期'].iloc[-1])
+                        inc_start_date = (last_date + timedelta(days=1)).strftime('%Y-%m-%d')
+                    else:
+                        inc_start_date = start_date
+                    
+                    # 如果增量开始日期在结束日期之前，需要更新
+                    if inc_start_date <= end_date:
+                        logger.info(f'增量更新 {stock_code} 数据，从 {inc_start_date} 到 {end_date}')
+                        
+                        # 获取新数据
+                        new_df = self.get_stock_history_data(stock_code, inc_start_date, end_date)
+                        
+                        if new_df is not None and not new_df.empty:
+                            # 合并数据并去重
+                            combined_df = pd.concat([existing_df, new_df])
+                            combined_df.drop_duplicates(subset=['日期'], keep='last', inplace=True)
+                            
+                            # 按日期排序
+                            combined_df['日期'] = pd.to_datetime(combined_df['日期'])
+                            combined_df.sort_values('日期', inplace=True)
+                            combined_df['日期'] = combined_df['日期'].dt.strftime('%Y-%m-%d')
+                            
+                            # 保存更新后的数据
+                            combined_df.to_csv(file_path, index=False, encoding='utf-8-sig')
+                            success_count += 1
+                            logger.info(f'{stock_code} 数据增量更新成功')
+                except Exception as e:
+                    logger.error(f'增量更新 {stock_code} 数据失败: {e}')
+                
+                # 避免请求过于频繁
+                time.sleep(0.5)
+        
+        logger.info(f'增量数据更新完成：成功更新 {success_count} 只股票')
+        return success_count
+    
+    def fetch_specific_stocks(self, stock_codes, start_date, end_date=None):
+        """
+        获取指定股票的历史数据
+        :param stock_codes: 股票代码列表或字符串（多个代码用逗号分隔）
+        :param start_date: 开始日期
+        :param end_date: 结束日期，默认为今天
+        :return: 成功获取的股票数量
+        """
+        # 处理输入参数
+        if isinstance(stock_codes, str):
+            # 如果是字符串，按逗号分隔
+            stock_codes = [code.strip() for code in stock_codes.split(',')]
+        
+        if end_date is None:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+        
+        # 默认365天数据
+        if start_date is None:
+            start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+        
+        logger.info(f'开始获取指定股票数据，股票数量：{len(stock_codes)}，日期范围：{start_date} 至 {end_date}')
+        
+        success_count = 0
+        
+        for i, stock_code in enumerate(stock_codes):
+            logger.info(f'正在获取第 {i+1}/{len(stock_codes)} 只股票: {stock_code}')
+            
+            # 获取历史数据
+            df = self.get_stock_history_data(stock_code, start_date, end_date)
+            
+            if df is not None and not df.empty:
+                # 保存数据
+                file_path = os.path.join(self.raw_data_dir, f'{stock_code}.csv')
+                df.to_csv(file_path, index=False, encoding='utf-8-sig')
+                success_count += 1
+                logger.info(f'{stock_code} 数据保存成功')
+            else:
+                logger.error(f'{stock_code} 数据获取失败')
+            
+            # 避免请求过于频繁
+            time.sleep(0.5)
+            
+            # 每处理10只股票，暂停一段时间
+            if (i + 1) % 10 == 0:
+                logger.info(f'已处理 {i+1} 只股票，休息5秒...')
+                time.sleep(5)
+        
+        logger.info(f'指定股票数据获取完成：成功 {success_count} 只，失败 {len(stock_codes) - success_count} 只')
         return success_count
 
 # 测试代码

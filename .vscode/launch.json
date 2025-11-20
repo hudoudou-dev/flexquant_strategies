@@ -4,37 +4,74 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
+        
         {
-            "name": "Python Debugger: Current File with Arguments",
-            "type": "debugpy",
+            "name": "main_fetch_incremental",
+            "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "${workspaceFolder}/main.py",
+            "python": "/Users/hudoudou/miniconda3/envs/flexquant_strategies/bin/python",
             "console": "integratedTerminal",
-            "args": "${command:pickArgs}"
+            "justMyCode": false,
+            "args": ["fetch", "--incremental"],
+            "env": {"DEBUG": "True"}
         },
-        // {
-        //     "name": "vt_infer_vis",
-        //     "type": "python",
-        //     "request": "launch",
-        //     "program": "${workspaceFolder}/.venv/lib/python3.8/site-packages/torchpilot/runner/ddp_launcher.py",
-        //     "python": "${workspaceFolder}/.venv/bin/python",
-        //     "console": "integratedTerminal",
-        //     "justMyCode": false,
-        //     "args": ["1","experiments/task_bev_11cam/exp_bev_onemodel_temporal_11cam/cfg_32_temporal_11cam_sparse_sod.py","-it","torch","-c","/share-global/shaohan.hu/models/torch/logs/backbone_11c.front_more_blocks_zero_init.rear_init.20240229/backbone_od_head_pretrain.pth.tar","-dm","sod_1clips"],
-        //     // "env":{"DEBUG":"True",},
-        // },
-        // {
-        //     "name": "vt_infer",
-        //     "type": "python",
-        //     "request": "launch",
-        //     "program": "${workspaceFolder}/.venv/lib/python3.8/site-packages/torchpilot/runner/ddp_launcher.py",
-        //     "python": "${workspaceFolder}/.venv/bin/python",
-        //     "console": "integratedTerminal",
-        //     "pythonPath": "${workspaceFolder}/.venv/bin/python3.8",
-        //     "justMyCode": false,
-        //     "args": ["1","experiments/task_bev_11cam/exp_bev_onemodel_temporal_11cam/cfg_32_temporal_11cam_sparse_od.py","-it","torch","-c","/share-global/kallen.yuan/torchpilot_outputs/task_bev_11cam/11cam_sparse/sparse_11c_v9/mtl_3task_od_occ_lane_0309_3kw_v1.0/ckpt/checkpoint_last.pth.tar","-dm","qa_benchmark_reverse"],
-        //     "env":{},
-        // },
+        {
+            "name": "main_fetch_specific",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "python": "/Users/hudoudou/miniconda3/envs/flexquant_strategies/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            // "args": ["fetch", "--stocks", "000001", "000002", "600038", "--start-date", "2023-01-01", "--end-date", "2023-12-31"],
+            "args": ["fetch", "--stocks", "000001", "000002", "600038"],
+            "env": {"DEBUG": "True"}
+        },
+        {
+            "name": "main_fetch_list",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "python": "/Users/hudoudou/miniconda3/envs/flexquant_strategies/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["fetch", "--stock-file", "./data/stock_list.txt"],
+            "env": {"DEBUG": "True"}
+        },
+        {
+            "name": "main_fetch_full",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "python": "/Users/hudoudou/miniconda3/envs/flexquant_strategies/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["fetch", "--full"],
+            "env": {"DEBUG": "True"}
+        },
+        {
+            "name": "main_select",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "python": "/Users/hudoudou/miniconda3/envs/flexquant_strategies/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["select", "--top", "10"],
+            "env": {"DEBUG": "True"}
+        },
+        {
+            "name": "main_backtest",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "python": "/Users/hudoudou/miniconda3/envs/flexquant_strategies/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["backtest"],
+            "env": {"DEBUG": "True"}
+        }
+
     ]
 }
