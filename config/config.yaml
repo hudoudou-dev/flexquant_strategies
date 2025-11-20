@@ -1,0 +1,194 @@
+# FlexQuant Strategies - 配置文件
+# 最后更新: 2024-01-15
+
+# 这个配置文件包含了以下主要部分：
+
+# 调度器配置：设置每日任务执行时间为20:00，以及日志级别等参数
+# 数据获取模块配置：配置数据源优先级、数据保存路径、是否增量更新等
+# 数据处理模块配置：设置涨停阈值、价格变化计算周期、过滤条件等
+# 策略模块配置：
+# 选股条件：价格上限20元、市值上限500亿、近90天2-3次涨停等
+# 评分权重：基础条件20%、涨停模式30%、价格变化25%、技术指标25%
+# 卖出规则：15%止盈、8%止损、最大持股30天
+# 回测模块配置：初始资金100万、最大持仓5只、交易成本等参数
+# 投资组合管理配置：自动更新设置、再平衡触发条件等
+# 日志配置：日志路径、级别、保留策略等
+# 所有参数都设置了合理的默认值，您可以根据需要随时调整这些参数。配置文件采用了模块化的结构，与我们已经实现的各个模块一一对应，便于维护和调整。
+
+# ========================================================
+# 调度器配置
+# ========================================================
+scheduler:
+  # 每日任务执行时间
+  daily_run_time: '20:00'
+  # 是否在启动时立即执行一次任务
+  run_on_startup: false
+  # 日志级别: DEBUG, INFO, WARNING, ERROR
+  log_level: 'INFO'
+
+# ========================================================
+# 数据获取模块配置
+# ========================================================
+data_fetch:
+  # 数据源优先级: akshare, baostock, tushare
+  primary_source: 'akshare'
+  # 备用数据源
+  backup_source: 'baostock'
+  # Tushare API配置（如需使用）
+  tushare:
+    token: ''
+  # 数据保存路径
+  data_dir:
+    raw: '../data/raw_data/'
+    processed: '../data/processed_data/'
+  # 是否使用增量更新
+  incremental_update: true
+  # 重试次数
+  max_retries: 3
+  # 超时时间（秒）
+  timeout: 30
+  # 是否包含创业板股票
+  include_gem_stocks: true
+  # 是否包含科创板股票
+  include_sci_tech_board: true
+
+# ========================================================
+# 数据处理模块配置
+# ========================================================
+data_processor:
+  # 价格数据缓存天数
+  price_data_days: 365
+  # 涨停阈值（百分比）
+  limit_up_threshold: 9.8
+  # 价格变化计算周期（天）
+  price_change_period: 90
+  # 是否过滤ST股票
+  filter_st_stocks: true
+  # 是否过滤停牌股票
+  filter_suspended_stocks: true
+  # 数据处理并行度
+  parallel_workers: 4
+  # 批量处理时每批股票数量
+  batch_size: 100
+
+# ========================================================
+# 策略模块配置
+# ========================================================
+strategy:
+  # 选股条件
+  stock_selection:
+    # 价格上限（元）
+    max_price: 20.0
+    # 市值上限（亿元）
+    max_market_cap: 500.0
+    # 最低涨停次数
+    min_limit_up_count: 2
+    # 最高涨停次数
+    max_limit_up_count: 3
+    # 涨停时间范围（天）
+    limit_up_days: 90
+    # 价格上涨幅度限制（百分比）
+    max_price_increase: 20.0
+    # 最低成交量（万股）
+    min_volume: 100.0
+    # 是否要求正盈利
+    require_profit: true
+    # 概念叠加权重（0-1之间）
+    concept_weight: 0.3
+  
+  # 评分权重配置
+  scoring_weights:
+    # 基础条件权重
+    basic_conditions: 0.2
+    # 涨停模式权重
+    limit_up_pattern: 0.3
+    # 价格变化权重
+    price_change: 0.25
+    # 技术指标权重
+    technical_indicators: 0.25
+  
+  # 卖出条件
+  selling_rules:
+    # 止盈阈值（百分比）
+    take_profit_threshold: 15.0
+    # 止损阈值（百分比）
+    stop_loss_threshold: 8.0
+    # 最大持股天数
+    max_holding_days: 30
+    # 止盈回落幅度（百分比）
+    trailing_stop_profit: 5.0
+  
+  # 技术指标参数
+  technical_indicators:
+    # RSI周期
+    rsi_period: 14
+    # MACD参数
+    macd_fast: 12
+    macd_slow: 26
+    macd_signal: 9
+    # KDJ参数
+    kdj_period: 9
+    kdj_slowing: 3
+
+# ========================================================
+# 回测模块配置
+# ========================================================
+backtester:
+  # 初始资金（元）
+  initial_capital: 1000000
+  # 最大持仓数量
+  max_positions: 5
+  # 单次交易资金比例
+  position_sizing_ratio: 0.2
+  # 交易成本配置
+  trading_costs:
+    # 买入佣金（百分比）
+    buy_commission: 0.0003
+    # 卖出佣金（百分比）
+    sell_commission: 0.0003
+    # 印花税（百分比，卖出时收取）
+    stamp_tax: 0.001
+    # 过户费（百分比）
+    transfer_fee: 0.00002
+  # 回测结果保存路径
+  results_dir: '../logs/backtest_results/'
+  # 是否进行风险分析
+  enable_risk_analysis: true
+  # 是否可视化结果
+  enable_visualization: true
+
+# ========================================================
+# 投资组合管理配置
+# ========================================================
+portfolio:
+  # 是否自动更新投资组合
+  auto_update: false
+  # 投资组合数据保存路径
+  data_dir: '../data/portfolio_data/'
+  # 再平衡触发条件
+  rebalance_triggers:
+    # 最大偏离度（百分比）
+    max_deviation: 5.0
+    # 最小再平衡间隔（天）
+    min_rebalance_days: 7
+  # 绩效评估频率（天）
+  performance_evaluation_days: 30
+  # 报告生成格式: csv, json, html
+  report_format: 'csv'
+
+# ========================================================
+# 日志配置
+# ========================================================
+logging:
+  # 日志目录
+  log_dir: '../logs/'
+  # 日志文件保留天数
+  log_retention_days: 30
+  # 控制台日志级别
+  console_level: 'INFO'
+  # 文件日志级别
+  file_level: 'DEBUG'
+  # 是否分割日志文件
+  enable_rotation: true
+  # 日志文件最大大小（MB）
+  max_file_size_mb: 50

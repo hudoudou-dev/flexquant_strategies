@@ -1,0 +1,15 @@
+pandas
+numpy
+matplotlib
+requests
+beautifulsoup4
+akshare
+baostock
+tushare
+seaborn
+scikit-learn
+apscheduler
+pytz
+pyyaml
+jupyterlab
+plotly
