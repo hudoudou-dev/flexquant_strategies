@@ -28,7 +28,7 @@ data_fetch:
   # 备用数据源
   backup_source: 'baostock'
   # Tushare API配置（如需使用）
-  tushare:
+  tushare_token:
     token: ''
   # 数据保存路径
   data_dir:
@@ -44,6 +44,8 @@ data_fetch:
   include_gem_stocks: true
   # 是否包含科创板股票
   include_sci_tech_board: true
+  # 默认获取10年数据
+  duration_dates: 3650
 
 # ========================================================
 # 数据处理模块配置

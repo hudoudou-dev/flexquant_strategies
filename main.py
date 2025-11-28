@@ -1,42 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-'''
-                       _oo0oo_
-                      o8888888o
-                      88" . "88
-                      (| -_- |)
-                      0\  =  /0
-                    ___/`---'\___
-                  .' \\|     |// '.
-                 / \\|||  :  |||// \
-                / _||||| -:- |||||- \
-               |   | \\\  - /// |   |
-               | \_|  ''\---/''  |_/ |
-               \  .-\__  '-'  ___/-. /
-             ___'. .'  /--.--\  `. .'___
-          ."" '<  `.___\_<|>_/___.' >' "".
-         | | :  `- \`.;`\ _ /`;.`/ - ` : | |
-         \  \ `_.   \_ __\ /__ _/   .-` /  /
-     =====`-.____`.___ \_____/___.-`___.-'=====
-                       `=---='
-
-
-     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-           佛祖保佑     永不宕机     永无BUG
-
-       佛曰:  
-               写字楼里写字间，写字间里程序员；  
-               程序人员写程序，又拿程序换酒钱。  
-               酒醒只在网上坐，酒醉还来网下眠；  
-               酒醉酒醒日复日，网上网下年复年。  
-               但愿老死电脑间，不愿鞠躬老板前；  
-               奔驰宝马贵者趣，公交自行程序员。  
-               别人笑我忒疯癫，我笑自己命太贱；  
-               不见满街漂亮妹，哪个归得程序员？
-'''
-
 """
 @Author:            hudoudou-dev
 @Email:             humengnju@qq.com
@@ -45,17 +9,18 @@
 @Modified By:       hudoudou-dev
 @Version:           1.0
 @Description:       FlexQuant-Strategies, main entrance with command line interface integrating data fetch, processing, strategy, backtesting, and scheduling functionalities.
-@Notes:             pass
+@Notes:             none.
 @History:
                     v1.0, create.
 """
 
 # 1. 获取数据:
-#    python main.py fetch --daily, python main.py fetch --full
-#    python main.py fetch --incremental # 增量获取数据
-#    python main.py fetch --stocks 000001 000002 600000
-#    python main.py fetch --stock-file stock_list.txt  # stock_list.txt文件，每行一个股票代码
-#    python main.py fetch --stocks 000001 000002 --start-date 2023-01-01 --end-date 2023-12-31
+#    python main.py fetch --full        # 完整数据更新
+#    python main.py fetch --daily       # 每日数据更新
+#    python main.py fetch --incremental # 增量数据更新
+#    python main.py fetch --stocks 000001 000002 600000   # 指定股票代码数据更新
+#    python main.py fetch --stocks 000001 000002 --start-date 2023-01-01 --end-date 2023-12-31  # 指定股票代码和日期范围数据更新
+#    python main.py fetch --stock-file stock_list.txt     # 指定股票代码数据更新. stock_list.txt文件, 每行一个股票代码
 
 # 2. 执行选股：
 #    python main.py select --top 10
@@ -160,7 +125,6 @@ def parse_arguments():
     return parser.parse_args()
 
 
-
 def load_config(config_path=None):
     """
     加载配置文件
@@ -195,8 +159,16 @@ def run_data_fetch(args, config):
     data_fetcher = DataFetcher(config=config.get('data_fetch', {}))
     
     if args.full:
+        from datetime import datetime, timedelta
+        if start_date is None:
+            # 从config中获取duration_dates，如果不存在则使用默认值
+            duration_days = config.get('data_fetch', {}).get('duration_dates', 3650)
+            start_date = (datetime.now() - timedelta(days=duration_days)).strftime('%Y-%m-%d')
+        if end_date is None:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+
         logger.info("开始执行完整数据获取...")
-        data_fetcher.fetch_all_data()
+        data_fetcher.fetch_all_data(start_date, end_date)
     elif args.daily:
         logger.info("开始执行每日数据更新...")
         data_fetcher.update_daily_data()

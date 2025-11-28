@@ -1,29 +1,19 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
-data_fetch.py
-
-Description: 
-Responsible for fetching A-share stock data from multiple data sources (akshare, baostock, tushare), 
-including stock lists, historical K-line data, and basic stock information. 
-Supports batch fetching of historical data for all stocks and daily incremental data updates.
-
-Author: 
-Created: YYYY-MM-DD
-Last Modified: YYYY-MM-DD
-Modification Notes: Initial creation, implemented multi-source stock data fetching functionality
-
-
-
-# data_fetch.py 功能概述：
-
-# 支持从 akshare、baostock 和 tushare 三个数据源获取A股数据
-# 可以获取所有A股股票代码列表
-# 获取单只股票的历史K线数据
-# 获取股票基本信息（市值、财务数据等）
-# 支持批量获取所有股票历史数据
-# 实现了每日数据更新功能
-
-
+@Author:            hudoudou-dev
+@Email:             humengnju@qq.com
+@Create Time:       2025-11-20
+@Last Modified:     2025-11-20
+@Modified By:       hudoudou-dev
+@Version:           1.0
+@Description:       Responsible for fetching A-share stock data from multiple data sources (akshare, baostock, tushare), 
+                    including stock lists, historical K-line data, and basic stock information. 
+                    Supports batch fetching of historical data for all stocks and daily incremental data updates.
+@Notes:             none.
+@History:
+                    v1.0, create. implemented multi-source stock data fetching functionality.
 """
 
 import akshare as ak
@@ -35,6 +25,7 @@ import time
 from datetime import datetime, timedelta
 import logging
 
+raw_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'raw_data')
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -44,10 +35,10 @@ class DataFetcher:
     def __init__(self, config=None):
         """
         初始化数据获取器
-        :param config: 配置字典，可选
+        :param config: 配置字典, 可选
         """
         self.config = config or {}
-        self.raw_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'raw_data')
+        self.raw_data_dir = raw_data_dir
         os.makedirs(self.raw_data_dir, exist_ok=True)
         
         # 初始化 baostock 连接（如果需要）
@@ -89,7 +80,7 @@ class DataFetcher:
     
     def get_all_stock_codes(self):
         """
-        获取所有A股股票代码列表
+        func: 获取所有A股股票代码列表
         :return: 股票代码列表
         """
         try:
@@ -133,14 +124,14 @@ class DataFetcher:
         """
         获取单个股票的历史K线数据
         :param stock_code: 股票代码
-        :param start_date: 开始日期，格式：YYYY-MM-DD
-        :param end_date: 结束日期，格式：YYYY-MM-DD，默认为今天
+        :param start_date: 开始日期, 格式: YYYY-MM-DD
+        :param end_date: 结束日期, 格式: YYYY-MM-DD, 默认为今天
         :return: 股票历史数据 DataFrame
         """
         if end_date is None:
             end_date = datetime.now().strftime('%Y-%m-%d')
         
-        # 根据股票代码前缀判断市场类型，用于 akshare
+        # 根据股票代码前缀判断市场类型, 用于 akshare
         market = 'sh' if stock_code.startswith(('6', '5')) else 'sz'
         full_code = f'{market}{stock_code}' if len(stock_code) == 6 else stock_code
         
@@ -159,7 +150,7 @@ class DataFetcher:
                     # Baostock 股票代码格式为 000001.SZ 或 600000.SH
                     bs_code = f'{stock_code}.SH' if stock_code.startswith(('6', '5')) else f'{stock_code}.SZ'
                     rs = bs.query_history_k_data_plus(bs_code, 
-                                                     "date,code,open,high,low,close,preclose,volume,amount,adjustflag,turn,tradestatus,pctChg,isST",
+                                                     "date, code, open, high, low, close, preclose, volume, amount, adjustflag, turn, tradestatus, pctChg, isST",
                                                      start_date=start_date, end_date=end_date,
                                                      frequency="d", adjustflag="2")  # 前复权
                     
@@ -170,8 +161,7 @@ class DataFetcher:
                     if data_list:
                         df = pd.DataFrame(data_list, columns=rs.fields)
                         # 转换数据类型
-                        numeric_cols = ['open', 'high', 'low', 'close', 'preclose', 'volume', 'amount', 'adjustflag', 
-                                      'turn', 'pctChg']
+                        numeric_cols = ['open', 'high', 'low', 'close', 'preclose', 'volume', 'amount', 'adjustflag', 'turn', 'pctChg']
                         for col in numeric_cols:
                             if col in df.columns:
                                 df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -212,7 +202,7 @@ class DataFetcher:
     
     def get_stock_basic_info(self, stock_code):
         """
-        获取股票基本信息，包括市值、财务数据等
+        获取股票基本信息, 包括市值、财务数据等
         :param stock_code: 股票代码
         :return: 基本信息字典
         """
@@ -240,7 +230,7 @@ class DataFetcher:
     
     def fetch_all_stocks_history(self, start_date, end_date=None, max_workers=1):
         """
-        获取所有股票的历史数据（此方法可能需要很长时间，请谨慎使用）
+        获取所有股票的历史数据（此方法可能需要很长时间, 请谨慎使用）
         :param start_date: 开始日期
         :param end_date: 结束日期
         :param max_workers: 最大工作线程数
@@ -271,12 +261,12 @@ class DataFetcher:
             # 避免请求过于频繁
             time.sleep(0.5)
             
-            # 每处理20只股票，暂停一段时间
+            # 每处理20只股票, 暂停一段时间
             if (i + 1) % 20 == 0:
-                logger.info(f'已处理 {i+1} 只股票，休息10秒...')
+                logger.info(f'已处理 {i+1} 只股票, 休息10秒...')
                 time.sleep(10)
         
-        logger.info(f'数据获取完成：成功 {success_count} 只，失败 {fail_count} 只')
+        logger.info(f'数据获取完成：成功 {success_count} 只, 失败 {fail_count} 只')
         return success_codes
     
     def update_daily_data(self):
@@ -303,9 +293,9 @@ class DataFetcher:
                     # 获取最后一条记录的日期
                     last_date = pd.to_datetime(existing_df['日期'].iloc[-1]).strftime('%Y-%m-%d')
                     
-                    # 如果最后日期不是昨天，需要更新
+                    # 如果最后日期不是昨天, 需要更新
                     if last_date != yesterday.strftime('%Y-%m-%d'):
-                        logger.info(f'更新 {stock_code} 数据，从 {last_date} 到 {yesterday.strftime("%Y-%m-%d")}')
+                        logger.info(f'更新 {stock_code} 数据, 从 {last_date} 到 {yesterday.strftime("%Y-%m-%d")}')
                         
                         # 获取新数据
                         new_start_date = (pd.to_datetime(last_date) + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -337,40 +327,37 @@ class DataFetcher:
     def fetch_all_data(self, start_date=None, end_date=None):
         """
         获取所有股票的历史数据（完整模式）
-        :param start_date: 开始日期，默认为空（从配置或默认值获取）
-        :param end_date: 结束日期，默认为今天
+        :param start_date: 开始日期, 默认为空（从配置或默认值获取）
+        :param end_date: 结束日期, 默认为今天
         :return: 成功获取的股票数量
         """
-        # 如果未提供开始日期，使用默认值（例如一年前）
+
+        # 如果未提供开始日期, 使用默认值
         if start_date is None:
-            start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-        
+            start_date = (datetime.now() - timedelta(days=self.config.get('duration_dates', 3650))).strftime('%Y-%m-%d')
         if end_date is None:
             end_date = datetime.now().strftime('%Y-%m-%d')
-        
-        logger.info(f'开始全量获取所有股票数据，日期范围：{start_date} 至 {end_date}')
+        logger.info(f'开始全量获取所有股票数据, 日期范围：{start_date} 至 {end_date}')
         
         # 调用现有的fetch_all_stocks_history方法
         success_codes = self.fetch_all_stocks_history(start_date, end_date)
         
-        logger.info(f'全量数据获取完成，成功获取 {len(success_codes)} 只股票')
+        logger.info(f'全量数据获取完成, 成功获取 {len(success_codes)} 只股票')
         return len(success_codes)
     
     def fetch_incremental_data(self, start_date=None, end_date=None):
         """
-        增量获取股票数据，只获取最新的数据
-        :param start_date: 开始日期，默认为空（自动计算）
-        :param end_date: 结束日期，默认为今天
+        增量获取股票数据, 只获取最新的数据
+        :param start_date: 开始日期, 默认为空（自动计算）
+        :param end_date: 结束日期, 默认为今天
         :return: 成功更新的股票数量
         """
-        # 如果未提供日期，使用自动计算的方式
+        # 如果未提供日期, 使用自动计算的方式
         if end_date is None:
             end_date = datetime.now().strftime('%Y-%m-%d')
-        
-        logger.info(f'开始增量更新股票数据，日期范围：{start_date} 至 {end_date}')
+        logger.info(f'开始增量更新股票数据, 日期范围：{start_date} 至 {end_date}')
         
         success_count = 0
-        
         # 遍历所有已有的股票数据文件
         for filename in os.listdir(self.raw_data_dir):
             if filename.endswith('.csv'):
@@ -389,9 +376,9 @@ class DataFetcher:
                     else:
                         inc_start_date = start_date
                     
-                    # 如果增量开始日期在结束日期之前，需要更新
+                    # 如果增量开始日期在结束日期之前, 需要更新
                     if inc_start_date <= end_date:
-                        logger.info(f'增量更新 {stock_code} 数据，从 {inc_start_date} 到 {end_date}')
+                        logger.info(f'增量更新 {stock_code} 数据, 从 {inc_start_date} 到 {end_date}')
                         
                         # 获取新数据
                         new_df = self.get_stock_history_data(stock_code, inc_start_date, end_date)
@@ -424,25 +411,23 @@ class DataFetcher:
         获取指定股票的历史数据
         :param stock_codes: 股票代码列表或字符串（多个代码用逗号分隔）
         :param start_date: 开始日期
-        :param end_date: 结束日期，默认为今天
+        :param end_date: 结束日期, 默认为今天
         :return: 成功获取的股票数量
         """
         # 处理输入参数
         if isinstance(stock_codes, str):
-            # 如果是字符串，按逗号分隔
+            # 如果是字符串, 按逗号分隔
             stock_codes = [code.strip() for code in stock_codes.split(',')]
         
         if end_date is None:
             end_date = datetime.now().strftime('%Y-%m-%d')
         
-        # 默认365天数据
+        # 默认10年数据
         if start_date is None:
-            start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-        
-        logger.info(f'开始获取指定股票数据，股票数量：{len(stock_codes)}，日期范围：{start_date} 至 {end_date}')
+            start_date = (datetime.now() - timedelta(days=self.config.get('duration_dates', 3650))).strftime('%Y-%m-%d')
+        logger.info(f'开始获取指定股票数据, 股票数量：{len(stock_codes)}, 日期范围：{start_date} 至 {end_date}')
         
         success_count = 0
-        
         for i, stock_code in enumerate(stock_codes):
             logger.info(f'正在获取第 {i+1}/{len(stock_codes)} 只股票: {stock_code}')
             
@@ -461,15 +446,15 @@ class DataFetcher:
             # 避免请求过于频繁
             time.sleep(0.5)
             
-            # 每处理10只股票，暂停一段时间
+            # 每处理10只股票, 暂停一段时间
             if (i + 1) % 10 == 0:
-                logger.info(f'已处理 {i+1} 只股票，休息5秒...')
+                logger.info(f'已处理 {i+1} 只股票, 休息5秒...')
                 time.sleep(5)
         
-        logger.info(f'指定股票数据获取完成：成功 {success_count} 只，失败 {len(stock_codes) - success_count} 只')
+        logger.info(f'指定股票数据获取完成：成功 {success_count} 只, 失败 {len(stock_codes) - success_count} 只')
         return success_count
 
-# 测试代码
+
 if __name__ == "__main__":
     # 创建数据获取器实例
     fetcher = DataFetcher()

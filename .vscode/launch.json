@@ -62,6 +62,17 @@
             "env": {"DEBUG": "True"}
         },
         {
+            "name": "data_processor_test",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data_processor.py",
+            "python": "/Users/hudoudou/miniconda3/envs/flexquant_strategies/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [],
+            "env": {"DEBUG": "True"}
+        },
+        {
             "name": "main_backtest",
             "type": "python",
             "request": "launch",
@@ -71,7 +82,19 @@
             "justMyCode": false,
             "args": ["backtest"],
             "env": {"DEBUG": "True"}
+        },
+        {
+            "name": "data_fetch_test",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data_fetch.py",
+            "python": "/Users/hudoudou/miniconda3/envs/flexquant_strategies/bin/python",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [],
+            "env": {"DEBUG": "True"}
         }
+
 
     ]
 }

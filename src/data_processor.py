@@ -37,7 +37,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger('data_processor')
 
 class DataProcessor:
-    def __init__(self):
+    def __init__(self, config=None):
         """
         初始化数据处理器
         """
@@ -46,6 +46,9 @@ class DataProcessor:
         self.processed_data_dir = os.path.join(self.base_dir, 'data', 'processed_data')
         self.portfolio_data_dir = os.path.join(self.base_dir, 'data', 'portfolio_data')
         
+        if config is not None:
+            self.config = config
+
         # 创建必要的目录
         os.makedirs(self.processed_data_dir, exist_ok=True)
         os.makedirs(self.portfolio_data_dir, exist_ok=True)
@@ -361,7 +364,7 @@ if __name__ == "__main__":
     
     # 如果有可用股票，测试单个股票处理
     if available_stocks:
-        sample_code = available_stocks[0]
+        sample_code = available_stocks[3]
         print(f"\n测试股票: {sample_code}")
         
         # 加载股票数据
