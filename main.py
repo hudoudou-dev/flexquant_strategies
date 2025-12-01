@@ -40,6 +40,7 @@ import sys
 import argparse
 import yaml
 import logging
+from datetime import datetime, timedelta
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -101,7 +102,7 @@ def parse_arguments():
     # 策略选股模式
     select_parser = subparsers.add_parser('select', help='执行策略选股')
     select_parser.add_argument('--top', type=int, default=10, help='返回前N只股票')
-    select_parser.add_argument('--output', type=str, help='输出文件路径')
+    select_parser.add_argument('--output', type=str, default="top10.csv", help='输出文件路径')
     
     # 回测模式
     backtest_parser = subparsers.add_parser('backtest', help='执行回测')
@@ -222,12 +223,12 @@ def run_strategy_select(args, config):
     # 初始化策略
     strategy = FlexStrategy(data_processor)
     
-    # 获取候选股票
-    # 使用最近90天作为时间范围
+    # 获取候选股票, 使用最近90天作为时间范围
     end_date = datetime.now().strftime('%Y-%m-%d')
-    start_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
-    
+    duration_days = config.get('data_processor', {}).get('price_change_period', 90)
+    start_date = (datetime.now() - timedelta(days=duration_days)).strftime('%Y-%m-%d')
     logger.info(f"获取候选股票 (日期范围: {start_date} 至 {end_date})...")
+
     candidates = strategy.get_candidate_stocks(start_date, end_date)
     
     # 评分和排序股票
@@ -255,8 +256,6 @@ def run_backtest(args, config):
         args: 命令行参数
         config: 配置字典
     """
-    # 导入必要的模块
-    from datetime import datetime, timedelta
     
     # 设置回测参数
     start_date = args.start_date or (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')

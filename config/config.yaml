@@ -66,6 +66,14 @@ data_processor:
   # 批量处理时每批股票数量
   batch_size: 100
 
+  # 策略选股参数
+  limit_up_nums: 2
+  max_price: 50
+  max_market_cap: 400.0
+  # min_price_change: null
+  # max_price_change: null
+
+
 # ========================================================
 # 策略模块配置
 # ========================================================

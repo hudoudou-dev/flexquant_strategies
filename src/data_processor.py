@@ -1,29 +1,21 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
-data_processor.py
-
-Description: 
-Responsible for processing and analyzing stock data, including loading historical data, 
-calculating limit-up days, calculating price change percentages, batch processing all stock data, 
-and filtering stocks that meet the preset strategy criteria. Supports data saving and loading functions.
-
-Author: 
-Created: YYYY-MM-DD
-Last Modified: YYYY-MM-DD
-Modification Notes: Initial creation, implemented data processing and strategy filtering functionality
+@Author:            hudoudou-dev
+@Email:             humengnju@qq.com
+@Create Time:       2025-11-20
+@Last Modified:     2025-11-20
+@Modified By:       hudoudou-dev
+@Version:           1.0
+@Description:       Responsible for processing and analyzing stock data, including loading historical data, 
+                    calculating limit-up days, calculating price change percentages, batch processing all stock data, 
+                    and filtering stocks that meet the preset strategy criteria. Supports data saving and loading functions.
+@Notes:             none.
+@History:
+                    v1.0, create. implemented data processing and strategy filtering functionality.
 """
 
-
-# data_processor.py 功能概述：
-
-# 加载单只股票的历史数据
-# 获取所有可用的股票代码
-# 计算指定时间段内的涨停天数
-# 计算指定时间段内的价格变化百分比
-# 批量处理所有股票数据，计算筛选所需的指标
-# 根据策略筛选股票（涨停次数、价格、价格变化等条件）
-# 支持保存和加载处理后的数据
-# 实现了每日数据处理更新功能
 
 import pandas as pd
 import numpy as np
@@ -35,6 +27,7 @@ import glob
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('data_processor')
+
 
 class DataProcessor:
     def __init__(self, config=None):
@@ -57,12 +50,11 @@ class DataProcessor:
         """
         加载单只股票的历史数据
         :param stock_code: 股票代码
-        :param start_date: 开始日期，格式：YYYY-MM-DD，默认为None（加载全部）
-        :param end_date: 结束日期，格式：YYYY-MM-DD，默认为None（加载全部）
+        :param start_date: 开始日期, 格式: YYYY-MM-DD, 默认为None(加载全部)
+        :param end_date: 结束日期, 格式: YYYY-MM-DD, 默认为None(加载全部)
         :return: 股票数据 DataFrame
         """
         file_path = os.path.join(self.raw_data_dir, f'{stock_code}.csv')
-        
         if not os.path.exists(file_path):
             logger.error(f'文件不存在: {file_path}')
             return None
@@ -79,7 +71,6 @@ class DataProcessor:
                     df = df[df['日期'] >= pd.to_datetime(start_date)]
                 if end_date:
                     df = df[df['日期'] <= pd.to_datetime(end_date)]
-            
             return df
         except Exception as e:
             logger.error(f'加载 {stock_code} 数据失败: {e}')
@@ -87,7 +78,7 @@ class DataProcessor:
     
     def get_all_available_stocks(self):
         """
-        获取所有可用的股票代码（基于已有的CSV文件）
+        获取所有可用的股票代码(基于已有的CSV文件)
         :return: 股票代码列表
         """
         stock_files = glob.glob(os.path.join(self.raw_data_dir, '*.csv'))
@@ -98,7 +89,7 @@ class DataProcessor:
         """
         计算指定时间段内的涨停天数
         :param df: 股票数据
-        :param period_days: 时间段（天），默认90天（约3个月）
+        :param period_days: 时间段(天), 默认90天(约3个月)
         :return: 涨停天数
         """
         if df is None or df.empty:
@@ -114,16 +105,17 @@ class DataProcessor:
         # 获取最近period_days天的数据
         recent_data = df_sorted.head(period_days)
         
-        # 计算涨跌幅列，如果没有则尝试从其他列计算
+        # 计算涨跌幅列, 如果没有则尝试从其他列计算
         if '涨跌幅' in recent_data.columns:
-            # 涨停条件：涨跌幅 >= 9.8%（考虑到四舍五入）
-            limit_up_days = len(recent_data[recent_data['涨跌幅'] >= 9.8])
+            # 涨停条件：涨跌幅 >= 9.8%（考虑到四舍五入)
+            limit_up_threshold = self.config.get("limit_up_threshold", 9.8)
+            limit_up_days = len(recent_data[recent_data['涨跌幅'] >= limit_up_threshold])
         elif '收盘价' in recent_data.columns and '开盘价' in recent_data.columns:
             # 计算涨跌幅
             recent_data['涨跌幅计算'] = (recent_data['收盘价'] - recent_data['开盘价']) / recent_data['开盘价'] * 100
             limit_up_days = len(recent_data[recent_data['涨跌幅计算'] >= 9.8])
         else:
-            logger.warning('无法计算涨跌幅，缺少必要的价格数据')
+            logger.warning('无法计算涨跌幅, 缺少必要的价格数据')
             limit_up_days = 0
         
         return limit_up_days
@@ -132,7 +124,7 @@ class DataProcessor:
         """
         计算指定时间段内的价格变化百分比
         :param df: 股票数据
-        :param period_days: 时间段（天），默认90天（约3个月）
+        :param period_days: 时间段（天), 默认90天（约3个月)
         :return: 价格变化百分比
         """
         if df is None or df.empty:
@@ -147,7 +139,6 @@ class DataProcessor:
         
         # 获取最近period_days天的数据
         recent_data = df_sorted.tail(period_days)
-        
         if len(recent_data) < 2:
             return 0
         
@@ -199,11 +190,10 @@ class DataProcessor:
             return None
         
         file_path = os.path.join(load_dir, filename)
-        
         if not os.path.exists(file_path):
             logger.error(f'文件不存在: {file_path}')
             return None
-        
+
         try:
             df = pd.read_csv(file_path, encoding='utf-8-sig')
             return df
@@ -213,8 +203,8 @@ class DataProcessor:
     
     def batch_process_all_stocks(self, period_days=90, save_results=True):
         """
-        批量处理所有股票数据，计算筛选所需的指标
-        :param period_days: 统计周期（天）
+        批量处理所有股票数据, 计算筛选所需的指标
+        :param period_days: 统计周期（天)
         :param save_results: 是否保存结果
         :return: 处理后的汇总数据 DataFrame
         """
@@ -265,19 +255,19 @@ class DataProcessor:
             timestamp = datetime.now().strftime('%Y%m%d')
             self.save_processed_data(results_df, f'stock_metrics_summary_{timestamp}.csv')
         
-        logger.info(f'批量处理完成，共处理 {len(results)} 只股票')
+        logger.info(f'批量处理完成, 共处理 {len(results)} 只股票')
         return results_df
     
     def filter_stocks_by_strategy(self, stock_metrics_df, 
-                                 limit_up_threshold=2,  # 至少涨停次数
+                                 limit_up_nums=2,   # 至少涨停次数
                                  max_price=20,           # 最高价格
-                                 max_market_cap=None,    # 最高市值（单位：亿元）
+                                 max_market_cap=None,    # 最高市值（单位：亿元)
                                  min_price_change=None,  # 最小价格变化百分比
                                  max_price_change=30):   # 最大价格变化百分比
         """
         根据策略筛选股票
         :param stock_metrics_df: 股票指标数据
-        :param limit_up_threshold: 涨停次数阈值
+        :param limit_up_nums: 涨停次数阈值
         :param max_price: 最高价格阈值
         :param max_market_cap: 最高市值阈值
         :param min_price_change: 最小价格变化阈值
@@ -285,11 +275,11 @@ class DataProcessor:
         :return: 筛选后的股票 DataFrame
         """
         if stock_metrics_df is None or stock_metrics_df.empty:
-            logger.warning('输入数据为空，无法筛选')
+            logger.warning('输入数据为空, 无法筛选')
             return pd.DataFrame()
         
         # 创建筛选条件
-        mask = (stock_metrics_df[f'{90}天涨停次数'] >= limit_up_threshold) & \
+        mask = (stock_metrics_df[f'{90}天涨停次数'] >= limit_up_nums) & \
                (stock_metrics_df['最新价格'] <= max_price)
         
         # 添加价格变化条件
@@ -302,7 +292,7 @@ class DataProcessor:
         # 应用筛选
         filtered_df = stock_metrics_df[mask].copy()
         
-        # 如果有市值数据，进一步筛选
+        # 如果有市值数据, 进一步筛选
         if max_market_cap is not None and '总市值' in filtered_df.columns:
             filtered_df = filtered_df[filtered_df['总市值'] <= max_market_cap]
         
@@ -311,7 +301,7 @@ class DataProcessor:
             filtered_df.sort_values([f'{90}天涨停次数', f'{90}天价格变化(%)'], 
                                    ascending=[False, True], inplace=True)
         
-        logger.info(f'筛选完成，符合条件的股票有 {len(filtered_df)} 只')
+        logger.info(f'筛选完成, 符合条件的股票有 {len(filtered_df)} 只')
         return filtered_df
     
     def update_processed_data_daily(self):
@@ -321,12 +311,22 @@ class DataProcessor:
         """
         try:
             # 批量处理所有股票
-            results_df = self.batch_process_all_stocks(save_results=True)
+            period_days = self.config.get('price_change_period', 90)
+            results_df = self.batch_process_all_stocks(save_results=True, period_days=period_days)
             
-            # 如果处理结果不为空，进行策略筛选
+            # 如果处理结果不为空, 进行策略筛选
             if not results_df.empty:
-                filtered_df = self.filter_stocks_by_strategy(results_df)
-                
+                if self.config is not None:
+                    logger.info('开始根据配置筛选股票...')
+                    filtered_df = self.filter_stocks_by_strategy(results_df,
+                                                                limit_up_nums=self.config.get('limit_up_nums', 2),
+                                                                max_price=self.config.get('max_price', 20),
+                                                                max_market_cap=self.config.get('max_market_cap', 500.0),
+                                                                min_price_change=self.config.get('min_price_change', None),
+                                                                max_price_change=self.config.get('max_price_change', None))
+                else:
+                    filtered_df = self.filter_stocks_by_strategy(results_df)
+
                 # 保存筛选结果
                 timestamp = datetime.now().strftime('%Y%m%d')
                 self.save_processed_data(filtered_df, f'daily_filtered_stocks_{timestamp}.csv')
@@ -334,7 +334,7 @@ class DataProcessor:
                 logger.info('每日数据处理完成')
                 return True
             else:
-                logger.warning('处理结果为空，无法进行筛选')
+                logger.warning('处理结果为空, 无法进行筛选')
                 return False
         except Exception as e:
             logger.error(f'每日数据处理失败: {e}')
@@ -343,8 +343,8 @@ class DataProcessor:
     # 在update_processed_data_daily()方法之后添加
     def process_daily_data(self):
         """
-        处理每日数据，为选股策略准备数据
-        该方法是update_processed_data_daily()的别名，保持API兼容性
+        处理每日数据, 为选股策略准备数据
+        该方法是update_processed_data_daily()的别名, 保持API兼容性
         
         Returns:
             bool: 处理是否成功
@@ -362,7 +362,7 @@ if __name__ == "__main__":
     available_stocks = processor.get_all_available_stocks()
     print(f"可用股票数量: {len(available_stocks)}")
     
-    # 如果有可用股票，测试单个股票处理
+    # 如果有可用股票, 测试单个股票处理
     if available_stocks:
         sample_code = available_stocks[3]
         print(f"\n测试股票: {sample_code}")
@@ -382,7 +382,7 @@ if __name__ == "__main__":
             price_change = processor.calculate_price_change(df)
             print(f"近90天价格变化(%): {price_change:.2f}")
     
-    # 测试批量处理（可选）
+    # 测试批量处理（可选)
     # results = processor.batch_process_all_stocks(save_results=False)
     # if results is not None and not results.empty:
     #     print(f"\n批量处理结果示例:")

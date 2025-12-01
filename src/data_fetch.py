@@ -52,6 +52,42 @@ class DataFetcher:
                 logger.info('Tushare API 初始化成功')
             except Exception as e:
                 logger.warning(f'Tushare API 初始化失败: {e}')
+        
+        # 缓存全市场股票信息，避免重复调用
+        self._stock_spot_cache = None
+        self._cache_timestamp = None
+        self._cache_valid_duration = 3600*24  # 缓存有效期，单位秒
+    
+    def _get_cached_stock_spot(self):
+        """
+        获取缓存的全市场股票信息，如果缓存不存在或已过期则重新获取
+        :return: 全市场股票信息DataFrame
+        """
+        current_time = time.time()
+        # 检查缓存是否存在且未过期
+        if (self._stock_spot_cache is not None and 
+            self._cache_timestamp is not None and 
+            current_time - self._cache_timestamp < self._cache_valid_duration):
+            return self._stock_spot_cache
+        
+        # 缓存不存在或已过期，重新获取
+        try:
+            logger.info('获取全市场股票信息...')
+            self._stock_spot_cache = ak.stock_zh_a_spot()
+            self._cache_timestamp = current_time
+            logger.info('全市场股票信息获取成功并缓存')
+            return self._stock_spot_cache
+        except Exception as e:
+            logger.error(f'获取全市场股票信息失败: {e}')
+            return None
+    
+    def clear_stock_spot_cache(self):
+        """
+        清除全市场股票信息缓存
+        """
+        self._stock_spot_cache = None
+        self._cache_timestamp = None
+        logger.info('全市场股票信息缓存已清除')
     
     def connect_baostock(self):
         """
@@ -216,13 +252,25 @@ class DataFetcher:
                 for _, row in stock_info.iterrows():
                     info[row['item']] = row['value']
             
-            # 获取市值信息
-            stock_zh_a_spot_df = ak.stock_zh_a_spot()
-            stock_data = stock_zh_a_spot_df[stock_zh_a_spot_df['代码'] == stock_code]
-            if not stock_data.empty:
-                info['总市值'] = stock_data['总市值'].values[0]
-                info['流通市值'] = stock_data['流通市值'].values[0]
-                info['市盈率-动态'] = stock_data['市盈率-动态'].values[0]
+            # 获取市值信息（使用缓存的全市场数据）
+            stock_zh_a_spot_df = self._get_cached_stock_spot()
+            if stock_zh_a_spot_df is not None:
+                # 修复：使用更灵活的匹配方式，检查代码的最后6位是否等于stock_code
+                # 这样可以匹配带前缀的代码格式（如sh600124、bj666220等）
+                stock_data = stock_zh_a_spot_df[stock_zh_a_spot_df['代码'].str[-6:] == stock_code]
+                
+                if not stock_data.empty:
+                    info['总市值'] = stock_data['总市值'].values[0]
+                    info['流通市值'] = stock_data['流通市值'].values[0]
+                    info['市盈率-动态'] = stock_data['市盈率-动态'].values[0]
+                else:
+                    # 如果精确匹配失败，尝试其他可能的格式
+                    # 1. 尝试直接匹配（兼容可能的其他格式）
+                    stock_data_direct = stock_zh_a_spot_df[stock_zh_a_spot_df['代码'] == stock_code]
+                    if not stock_data_direct.empty:
+                        info['总市值'] = stock_data_direct['总市值'].values[0]
+                        info['流通市值'] = stock_data_direct['流通市值'].values[0]
+                        info['市盈率-动态'] = stock_data_direct['市盈率-动态'].values[0]
         except Exception as e:
             logger.error(f'获取 {stock_code} 基本信息失败: {e}')
         
@@ -248,6 +296,17 @@ class DataFetcher:
             df = self.get_stock_history_data(code, start_date, end_date)
             
             if df is not None and not df.empty:
+                # 获取基本信息（包括市值数据）
+                basic_info = self.get_stock_basic_info(code)
+                
+                # 添加市值数据到历史数据中
+                if '总市值' in basic_info:
+                    df['总市值'] = basic_info['总市值']
+                if '流通市值' in basic_info:
+                    df['流通市值'] = basic_info['流通市值']
+                if '市盈率-动态' in basic_info:
+                    df['市盈率-动态'] = basic_info['市盈率-动态']
+                
                 # 保存数据
                 file_path = os.path.join(self.raw_data_dir, f'{code}.csv')
                 df.to_csv(file_path, index=False, encoding='utf-8-sig')
@@ -302,6 +361,17 @@ class DataFetcher:
                         new_df = self.get_stock_history_data(stock_code, new_start_date)
                         
                         if new_df is not None and not new_df.empty:
+                            # 获取基本信息（包括市值数据）
+                            basic_info = self.get_stock_basic_info(stock_code)
+                            
+                            # 添加市值数据到新数据中
+                            if '总市值' in basic_info:
+                                new_df['总市值'] = basic_info['总市值']
+                            if '流通市值' in basic_info:
+                                new_df['流通市值'] = basic_info['流通市值']
+                            if '市盈率-动态' in basic_info:
+                                new_df['市盈率-动态'] = basic_info['市盈率-动态']
+                            
                             # 合并数据并去重
                             combined_df = pd.concat([existing_df, new_df])
                             combined_df.drop_duplicates(subset=['日期'], keep='last', inplace=True)
@@ -435,6 +505,17 @@ class DataFetcher:
             df = self.get_stock_history_data(stock_code, start_date, end_date)
             
             if df is not None and not df.empty:
+                # 获取基本信息（包括市值数据）
+                basic_info = self.get_stock_basic_info(stock_code)
+                
+                # 添加市值数据到历史数据中
+                if '总市值' in basic_info:
+                    df['总市值'] = basic_info['总市值']
+                if '流通市值' in basic_info:
+                    df['流通市值'] = basic_info['流通市值']
+                if '市盈率-动态' in basic_info:
+                    df['市盈率-动态'] = basic_info['市盈率-动态']
+                
                 # 保存数据
                 file_path = os.path.join(self.raw_data_dir, f'{stock_code}.csv')
                 df.to_csv(file_path, index=False, encoding='utf-8-sig')
