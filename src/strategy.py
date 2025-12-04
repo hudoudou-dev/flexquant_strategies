@@ -1,76 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
-# 核心功能:
-
-# 实现了回测器所需的三个核心方法：should_buy()、should_sell() 和 score_stock()
-# 基于用户要求的选股条件（近三月两三次涨停但股价未大幅上涨、20元以下、市值500亿以下、非亏损等）
-# 提供卖出评分机制（目标收益率15%、止损8%、最大持股30天等）
-# 支持特定股票的交易评估
-# 策略参数:
-
-# 股价上限：20元
-# 市值上限：500亿元
-# 涨停次数范围：2-3次
-# 涨停观察期：90天
-# 最大价格涨幅：30%
-# 目标收益率：15%
-# 止损比例：-8%
-# 最大持股天数：30天
-# 买入逻辑 (should_buy):
-
-# 检查股价是否在20元以下
-# 检查市值是否在500亿以下
-# 检查是否为非亏损股票
-# 检查近三个月是否有2-3次涨停
-# 检查近三个月股价涨幅是否不超过30%
-# 技术面检查（均线多头排列、RSI指标等）
-# 卖出逻辑 (should_sell):
-
-# 达到目标收益率（15%）时止盈卖出
-# 达到止损条件（-8%）时止损卖出
-# 持股时间超过最大期限（30天）时卖出
-# 技术面恶化（均线空头排列、RSI超买等）时卖出
-# 股票评分机制 (score_stock):
-
-# 基础条件评分（价格、市值等）
-# 涨停模式评分
-# 价格变化评分
-# 技术面评分（均线排列、RSI指标等）
-# 总分为100分，评分越高表示股票越符合策略要求
-# 额外功能:
-
-# get_candidate_stocks(): 获取候选股票列表，用于全市场回测
-# filter_stocks_by_conditions(): 根据条件过滤股票
-# get_top_stocks(): 获取评分最高的前N只股票
-# evaluate_stock_performance(): 评估特定股票在指定时间段内的表现
-# 使用方法
-# 与回测器配合:
-
-# 回测器初始化时需要传入策略实例
-# 回测过程中会自动调用 should_buy()、should_sell() 和 score_stock() 方法
-# 独立使用:
-
-# 可以单独使用策略评估特定股票的表现
-# 可以筛选符合条件的股票列表
-# 参数调整:
-
-# 可以通过修改类初始化时的参数来调整策略的严格程度
-# 可以根据实际市场情况调整买入卖出条件
-# 这个策略模块设计灵活，可以与之前实现的回测器无缝配合，支持用户要求的全市场回测和特定股票回测功能，同时提供了详细的股票评估和筛选机制。
-
-
-
 """
-策略模块 (Strategy)
-
-功能描述: 实现股票交易策略，包含买入信号、卖出信号和股票评分机制
-作者: FlexQuant Team
-创建时间: 2024-01-01
-修改时间: 2024-01-01
-修改备注: 初始版本
+@Author:            hudoudou-dev
+@Email:             humengnju@qq.com
+@Create Time:       2025-11-20
+@Last Modified:     2025-11-20
+@Modified By:       hudoudou-dev
+@Version:           1.0
+@Description:       stock trading strategy, including buy signals, sell signals, and a stock scoring mechanism
+@Notes:             none.
+@History:
+                    v1.0, create. implemented multi-source stock data fetching functionality.
 """
+
 
 import os
 import pandas as pd
@@ -95,7 +38,7 @@ class FlexStrategy:
     股票交易策略类，实现基于涨停模式的选股和交易策略
     """
     
-    def __init__(self, data_processor=None):
+    def __init__(self, data_processor=None, config={}):
         """
         初始化策略对象
         
@@ -103,21 +46,25 @@ class FlexStrategy:
             data_processor: 数据处理器对象，用于获取数据
         """
         self.data_processor = data_processor
-        
+
         # 策略参数
-        self.max_price = 20.0  # 股价上限
-        self.max_market_cap = 500  # 市值上限（单位：亿元）
-        self.min_limit_ups = 2  # 最少涨停次数
-        self.max_limit_ups = 3  # 最多涨停次数
-        self.limit_up_period = 90  # 涨停观察期（天数）
-        self.max_price_increase = 0.3  # 最大价格涨幅（30%）
-        self.profit_target = 0.15  # 目标收益率（15%）
-        self.stop_loss_ratio = -0.08  # 止损比例（-8%）
-        self.holding_period_limit = 30  # 最大持股天数
-        
+        self.max_price = config.get('stock_selection', {}).get('max_price', 20.0)  # 股价上限
+        self.min_price = config.get('stock_selection', {}).get('min_price', 10.0)  # 股价下限
+        self.max_market_cap = config.get('stock_selection', {}).get('max_market_cap', 10.0)  # 市值上限（单位：亿元）
+        self.min_limit_up_count = config.get('stock_selection', {}).get('min_limit_up_count', 2)  # 最低涨停次数
+        self.max_limit_up_count = config.get('stock_selection', {}).get('max_limit_up_count', 5)  # 最高涨停次数
+        self.limit_up_period = config.get('stock_selection', {}).get('limit_up_period', 90)  # 涨停时间范围（天）
+        self.max_price_increase = config.get('stock_selection', {}).get('max_price_increase', 30.0)  # 最大价格涨幅（30%）
+        self.profit_target = config.get('stock_selection', {}).get('profit_target', 20.0)  # 目标收益率（20%）
+        self.stop_loss_ratio = config.get('stock_selection', {}).get('stop_loss_ratio', 10.0)  # 止损比例（10%）
+        self.holding_period_limit = config.get('stock_selection', {}).get('holding_period_limit', 30)  # 最大持股天数
+        self.min_volume = config.get('stock_selection', {}).get('min_volume', 100.0)  # 最低成交量（万股）
+        self.require_profit = config.get('stock_selection', {}).get('require_profit', True)  # 是否要求正盈利
+        self.concept_weight = config.get('stock_selection', {}).get('concept_weight', 0.3)   # 概念叠加权重（0-1之间）
+        self.limit_up_threshold = config.get('stock_selection', {}).get('limit_up_threshold', 9.8)   # 涨停阈值（百分比）
+
         logger.info(f"Strategy initialized with parameters:")
-        logger.info(f"  max_price: {self.max_price}, max_market_cap: {self.max_market_cap}B")
-        logger.info(f"  limit_ups range: {self.min_limit_ups}-{self.max_limit_ups} in {self.limit_up_period} days")
+        logger.info(f"  max_price: {self.max_price}, max_market_cap: {self.max_market_cap}")
         logger.info(f"  max_price_increase: {self.max_price_increase}, profit_target: {self.profit_target}")
         logger.info(f"  stop_loss_ratio: {self.stop_loss_ratio}, holding_period_limit: {self.holding_period_limit} days")
     
@@ -138,31 +85,27 @@ class FlexStrategy:
         
         try:
             # 获取所有A股代码列表
-            stock_list = self.data_processor.get_stock_list()
+            stock_list = self.data_processor.get_all_available_stocks()
             logger.info(f"Processing {len(stock_list)} stocks for candidate selection")
             
             candidate_data = {}
-            
             # 为每个股票获取数据
-            for code in stock_list[:100]:  # 限制处理数量以提高效率
+            for code in stock_list:
                 try:
                     # 加载处理后的数据
-                    df = self.data_processor.load_processed_data(code)
-                    
+                    # df = self.data_processor.load_processed_data(code)
+                    df = self.data_processor.load_stock_data(code)
                     if df is not None and not df.empty:
                         # 过滤日期范围
-                        df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+                        df = df[(df['日期'] >= pd.to_datetime(start_date)) & (df['日期'] <= pd.to_datetime(end_date))]
                         if not df.empty:
-                            # 计算额外的特征
-                            df = self._calculate_features(df)
+                            df = self._calculate_features(df)   # 计算额外的特征
                             candidate_data[code] = df
                 except Exception as e:
                     logger.error(f"Error processing stock {code}: {str(e)}")
                     continue
-            
             logger.info(f"Selected {len(candidate_data)} candidate stocks")
-            return candidate_data
-        
+            return candidate_data   
         except Exception as e:
             logger.error(f"Error in get_candidate_stocks: {str(e)}")
             return {}
@@ -177,28 +120,30 @@ class FlexStrategy:
         返回:
             pd.DataFrame: 添加了特征的股票数据
         """
+        df_new = df.copy()
+
         # 计算涨停标记（涨幅>=9.8%认为是涨停）
-        df['is_limit_up'] = df['close'].pct_change() >= 0.098
+        df_new.loc[:, 'is_limit_up'] = (df_new['收盘价'].pct_change() * 100.0) >= self.limit_up_threshold
         
         # 计算N日内涨停次数
-        df['limit_up_count'] = df['is_limit_up'].rolling(window=self.limit_up_period).sum()
+        df_new.loc[:, 'limit_up_count'] = df_new['is_limit_up'].rolling(window=self.limit_up_period).sum()
         
         # 计算N日内最大价格变化
-        df['price_change_n_days'] = df['close'] / df['close'].shift(self.limit_up_period) - 1
-        
+        df_new.loc[:, 'price_change_n_days'] = df_new['收盘价'] / df_new['收盘价'].shift(self.limit_up_period) - 1
+
         # 计算移动平均线
-        df['ma5'] = df['close'].rolling(window=5).mean()
-        df['ma20'] = df['close'].rolling(window=20).mean()
-        df['ma60'] = df['close'].rolling(window=60).mean()
+        df_new.loc[:, 'ma5'] = df_new['收盘价'].rolling(window=5).mean()
+        df_new.loc[:, 'ma20'] = df_new['收盘价'].rolling(window=20).mean()
+        df_new.loc[:, 'ma60'] = df_new['收盘价'].rolling(window=60).mean()
         
         # 计算相对强弱指标（简化版）
-        delta = df['close'].diff()
+        delta = df_new['收盘价'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
-        df['rsi'] = 100 - (100 / (1 + rs))
+        df_new.loc[:, 'rsi'] = 100 - (100 / (1 + rs))
         
-        return df
+        return df_new
     
     def should_buy(self, code, daily_data):
         """
@@ -214,12 +159,12 @@ class FlexStrategy:
         try:
             # 基础条件检查
             # 1. 股价在20元以下
-            if daily_data['close'] > self.max_price:
+            if daily_data['收盘价'] > self.max_price:
                 return False
             
             # 2. 市值在500亿以下（如果有市值数据）
-            if 'market_cap' in daily_data and not pd.isna(daily_data['market_cap']):
-                if daily_data['market_cap'] > self.max_market_cap:
+            if '总市值' in daily_data and not pd.isna(daily_data['总市值']):
+                if daily_data['总市值'] / 1e8 > self.max_market_cap:
                     return False
             
             # 3. 非亏损（如果有净利润数据）
@@ -227,9 +172,9 @@ class FlexStrategy:
                 if daily_data['net_profit'] < 0:
                     return False
             
-            # 4. 近三个月有2-3次涨停
+            # 4. 近三个月有2-5次涨停
             if 'limit_up_count' in daily_data and not pd.isna(daily_data['limit_up_count']):
-                if not (self.min_limit_ups <= daily_data['limit_up_count'] <= self.max_limit_ups):
+                if not (self.min_limit_up_count <= daily_data['limit_up_count'] <= self.max_limit_up_count):
                     return False
             else:
                 # 如果没有涨停计数，尝试计算
@@ -279,7 +224,7 @@ class FlexStrategy:
         try:
             # 1. 达到目标收益率（止盈）
             buy_price = position['avg_price']
-            current_price = daily_data['close']
+            current_price = daily_data['收盘价']
             profit_ratio = (current_price / buy_price) - 1
             
             if profit_ratio >= self.profit_target:
@@ -293,7 +238,7 @@ class FlexStrategy:
             
             # 3. 持股时间过长
             buy_date = position['buy_date']
-            current_date = daily_data['date']
+            current_date = daily_data['日期']
             
             # 计算持股天数
             days_held = (pd.to_datetime(current_date) - pd.to_datetime(buy_date)).days
@@ -337,22 +282,22 @@ class FlexStrategy:
             
             # 1. 基础条件评分
             # 价格因素（价格越低，评分越高）
-            if daily_data['close'] <= self.max_price:
-                score += (1 - daily_data['close'] / self.max_price) * 20
+            if daily_data['收盘价'] <= self.max_price:
+                score += (1 - daily_data['收盘价'] / self.max_price) * 20
             
             # 市值因素（如果有数据）
-            if 'market_cap' in daily_data and not pd.isna(daily_data['market_cap']):
-                market_cap_score = max(0, 1 - daily_data['market_cap'] / self.max_market_cap) * 15
+            if '总市值' in daily_data and not pd.isna(daily_data['总市值']):
+                market_cap_score = max(0, 1 - daily_data['总市值'] / 1e8 / self.max_market_cap) * 15
                 score += market_cap_score
             
             # 2. 涨停模式评分
             if 'limit_up_count' in daily_data and not pd.isna(daily_data['limit_up_count']):
                 # 涨停次数在理想范围内给予高分
-                if self.min_limit_ups <= daily_data['limit_up_count'] <= self.max_limit_ups:
+                if self.min_limit_up_count <= daily_data['limit_up_count'] <= self.max_limit_up_count:
                     score += 30
-                elif daily_data['limit_up_count'] > self.max_limit_ups:
+                elif daily_data['limit_up_count'] > self.max_limit_up_count:
                     # 涨停次数过多，可能已经过热
-                    score += max(0, 30 - (daily_data['limit_up_count'] - self.max_limit_ups) * 10)
+                    score += max(0, 30 - (daily_data['limit_up_count'] - self.max_limit_up_count) * 10)
             
             # 3. 价格变化评分
             if 'price_change_n_days' in daily_data and not pd.isna(daily_data['price_change_n_days']):
@@ -378,7 +323,7 @@ class FlexStrategy:
                     score += 5
             
             # 5. 成交量评分（如果有数据）
-            if 'volume' in daily_data and 'volume' in daily_data.index:
+            if '成交量' in daily_data and '成交量' in daily_data.index:
                 # 简化处理，假设成交量较前一交易日有所增加
                 pass
             
@@ -405,7 +350,7 @@ class FlexStrategy:
         for code, df in stocks_data.items():
             try:
                 # 获取指定日期的数据
-                daily_data = df[df['date'] == date]
+                daily_data = df[df['日期'] == date]
                 
                 if not daily_data.empty:
                     daily_data = daily_data.iloc[0]
@@ -537,24 +482,23 @@ class FlexStrategy:
                 return None
             
             # 过滤日期范围
-            df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-            
+            df = df[(df['日期'] >= start_date) & (df['日期'] <= end_date)]
             if df.empty:
                 logger.error(f"No data available for stock {code} in date range")
                 return None
             
             # 计算基础表现指标
-            start_price = df['close'].iloc[0]
-            end_price = df['close'].iloc[-1]
+            start_price = df['收盘价'].iloc[0]
+            end_price = df['收盘价'].iloc[-1]
             total_return = (end_price / start_price) - 1
             
             # 计算最大回撤
-            cumulative_max = df['close'].cummax()
-            drawdown = (df['close'] - cumulative_max) / cumulative_max
+            cumulative_max = df['收盘价'].cummax()
+            drawdown = (df['收盘价'] - cumulative_max) / cumulative_max
             max_drawdown = drawdown.min()
             
             # 计算涨停次数
-            df['is_limit_up'] = df['close'].pct_change() >= 0.098
+            df['is_limit_up'] = (df['收盘价'].pct_change() * 100 >= self.limit_up_threshold)
             limit_up_count = df['is_limit_up'].sum()
             
             # 计算日均成交量
@@ -569,16 +513,16 @@ class FlexStrategy:
                 if position is None:
                     if self.should_buy(code, row):
                         buy_signals.append({
-                            'date': row['date'],
-                            'price': row['close']
+                            'date': row['日期'],
+                            'price': row['收盘价']
                         })
-                        position = {'avg_price': row['close'], 'buy_date': row['date']}
+                        position = {'avg_price': row['收盘价'], 'buy_date': row['日期']}
                 else:
                     if self.should_sell(code, row, position):
                         sell_signals.append({
-                            'date': row['date'],
-                            'price': row['close'],
-                            'profit_ratio': (row['close'] / position['avg_price']) - 1
+                            'date': row['日期'],
+                            'price': row['收盘价'],
+                            'profit_ratio': (row['收盘价'] / position['avg_price']) - 1
                         })
                         position = None
             
@@ -622,9 +566,7 @@ def run_strategy_example():
     """
     策略示例函数，演示如何使用策略类
     """
-    # 这里需要导入实际的数据处理器类
-    # from src.data_processor import DataProcessor
-    
+
     print("Strategy example configuration:")
     print("1. Stock selection based on limit up patterns")
     print("2. Buy conditions: ")
@@ -647,6 +589,8 @@ def run_strategy_example():
     
     # 示例代码（未运行）:
     """
+    from src.data_processor import DataProcessor
+
     # 初始化数据处理器
     data_processor = DataProcessor()
     

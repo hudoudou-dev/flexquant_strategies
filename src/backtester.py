@@ -2,53 +2,18 @@
 # -*- coding: utf-8 -*-
 
 """
-回测模块 (Backtester)
-
-功能描述: 提供股票策略回测功能，支持全市场回测和特定股票回测，计算收益率和交易绩效指标
-作者: FlexQuant Team
-创建时间: 2024-01-01
-修改时间: 2024-01-01
-修改备注: 初始版本
+@Author:            hudoudou-dev
+@Email:             humengnju@qq.com
+@Create Time:       2025-11-20
+@Last Modified:     2025-11-20
+@Modified By:       hudoudou-dev
+@Version:           1.0
+@Description:       provide stock strategy backtesting functionality, supporting full-market backtesting and specific stock backtesting, 
+                    with calculations of return rates and trading performance metrics.
+@Notes:             none.
+@History:
+                    v1.0, create.
 """
-
-# 核心功能:
-
-# 支持设置起止时间段、初始资金和最大持仓数量
-# 提供全市场回测和特定股票回测两种模式
-# 自动计算买入卖出信号，执行交易
-# 记录详细的交易历史和投资组合状态
-# 计算全面的绩效指标（总收益、年化收益、夏普比率、最大回撤等）
-# 生成可视化图表展示回测结果
-# 主要类和方法:
-
-# Backtester: 回测器主类，包含完整的回测逻辑
-# load_data(): 加载回测所需的股票数据
-# run_backtest(): 执行回测的主方法
-# _execute_daily_trading(): 执行单日交易逻辑
-# _process_buy_signals() 和 _process_sell_signals(): 处理买卖信号
-# _calculate_performance_metrics(): 计算绩效指标
-# plot_results(): 绘制回测结果图表
-# 使用方式:
-
-# 初始化回测器，传入起止日期、初始资金、最大持仓数量等参数
-# 提供策略对象和数据处理器对象
-# 调用 run_backtest() 方法执行回测，可以指定股票代码进行特定股票回测
-# 使用 plot_results() 方法可视化回测结果
-# 如何与其他模块配合
-# 与 strategy.py 配合:
-
-# 回测器需要一个策略对象，该对象应包含 should_buy()、should_sell() 和 score_stock() 方法
-# 策略负责生成买卖信号和股票评分
-# 与 data_processor.py 配合:
-
-# 回测器需要一个数据处理器对象，用于加载和处理数据
-# 数据处理器应提供 load_processed_data() 方法获取股票数据
-# 结果存储:
-
-# 交易记录保存在 data/portfolio_data/transactions.csv
-# 投资组合历史保存在 data/portfolio_data/portfolio_history.csv
-# 回测结果图表保存在 data/portfolio_data/backtest_results.png
-# 这个回测模块设计灵活，可以满足用户对全市场回测和特定股票回测的需求，同时提供了全面的绩效评估和可视化功能。
 
 
 import os
@@ -75,8 +40,13 @@ class Backtester:
     回测器类，用于执行股票交易策略的回测
     """
     
-    def __init__(self, start_date, end_date, initial_capital=1000000, max_stocks=5,
-                 strategy=None, data_processor=None):
+    def __init__(self, 
+                 start_date, 
+                 end_date, 
+                 initial_capital=1000000, 
+                 max_stocks=5,
+                 strategy=None, 
+                 data_processor=None):
         """
         初始化回测器
         
@@ -122,7 +92,8 @@ class Backtester:
             stock_data = {}
             for code in stock_codes:
                 try:
-                    df = self.data_processor.load_processed_data(code)
+                    # df = self.data_processor.load_processed_data(code)
+                    df = self.data_processor.load_stock_data(code)
                     # 过滤日期范围
                     df = df[(df['date'] >= self.start_date) & (df['date'] <= self.end_date)]
                     if not df.empty:
@@ -501,8 +472,7 @@ class Backtester:
         
         # 绘制累计收益率
         plt.subplot(2, 1, 1)
-        plt.plot(self.portfolio_history['date'], 
-                self.portfolio_history['total_value'] / self.initial_capital - 1)
+        plt.plot(self.portfolio_history['date'], self.portfolio_history['total_value'] / self.initial_capital - 1)
         plt.title('Cumulative Return')
         plt.ylabel('Return')
         plt.grid(True)
@@ -531,14 +501,13 @@ def run_backtest_example():
     """
     回测示例函数，演示如何使用回测器
     """
-    # 这里需要导入实际的策略和数据处理器类
     # from src.strategy import FlexStrategy
     # from src.data_processor import DataProcessor
     
     # 示例回测配置
     backtest_config = {
-        'start_date': '2022-01-01',
-        'end_date': '2023-12-31',
+        'start_date': '2024-10-31',
+        'end_date': '2025-10-31',
         'initial_capital': 1000000,
         'max_stocks': 5
     }
@@ -561,8 +530,8 @@ def run_backtest_example():
     
     # 创建回测器
     backtester = Backtester(
-        start_date='2022-01-01',
-        end_date='2023-12-31',
+        start_date='2024-10-31',
+        end_date='2025-10-31',
         initial_capital=1000000,
         max_stocks=5,
         strategy=strategy,
@@ -573,7 +542,7 @@ def run_backtest_example():
     results = backtester.run_backtest()
     
     # 或者特定股票回测
-    # results = backtester.run_backtest(stock_codes=['000001', '600000'])
+    # results = backtester.run_backtest(stock_codes=['000001', '002415'])
     
     # 绘制结果
     backtester.plot_results()

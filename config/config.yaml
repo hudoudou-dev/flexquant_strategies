@@ -89,18 +89,27 @@ strategy:
     # 最低涨停次数
     min_limit_up_count: 2
     # 最高涨停次数
-    max_limit_up_count: 3
+    max_limit_up_count: 5
     # 涨停时间范围（天）
-    limit_up_days: 90
+    limit_up_period: 20
     # 价格上涨幅度限制（百分比）
-    max_price_increase: 20.0
+    max_price_increase: 30.0
     # 最低成交量（万股）
     min_volume: 100.0
     # 是否要求正盈利
     require_profit: true
     # 概念叠加权重（0-1之间）
     concept_weight: 0.3
-  
+    # 目标收益率（20%）
+    profit_target: 20.0
+    # 止损比例（10%）
+    stop_loss_ratio: 10.0
+    # 最大持股天数
+    holding_period_limit: 30
+    # 涨停阈值（百分比）
+    limit_up_threshold: 9.8
+
+
   # 评分权重配置
   scoring_weights:
     # 基础条件权重

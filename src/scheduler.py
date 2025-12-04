@@ -2,29 +2,17 @@
 # -*- coding: utf-8 -*-
 
 """
-调度模块 (scheduler.py)
-
-功能描述: 实现每日定时任务功能，用于自动运行股票数据获取、处理和策略筛选流程
-作者: FlexQuant Team
-创建时间: 2024-01-15
-修改时间: 2024-01-15
-修改备注: 初始版本，实现基础定时调度功能
+@Author:            hudoudou-dev
+@Email:             humengnju@qq.com
+@Create Time:       2025-11-20
+@Last Modified:     2025-11-20
+@Modified By:       hudoudou-dev
+@Version:           1.0
+@Description:       implement a daily scheduled task function to automatically run the processes of stock data acquisition, processing, and strategy screening.
+@Notes:             none.
+@History:
+                    v1.0, create.
 """
-
-
-# 这个调度模块具有以下特点：
-
-# 定时任务功能：使用schedule库实现每日20点自动运行（时间可通过配置文件修改）
-# 完整的任务流程：包含数据更新、数据处理、策略筛选和投资组合更新
-# 模块化设计：与之前实现的data_fetch.py、data_processor.py、strategy.py和portfolio.py无缝集成
-# 配置管理：通过config.yaml配置文件管理调度时间和其他参数
-# 日志记录：详细记录任务执行过程和结果
-# 手动触发功能：支持通过命令行参数立即执行任务（用于测试）
-# 错误处理：完善的异常捕获和日志记录机制
-# 使用方法：
-
-# 启动定时调度器：python src/scheduler.py
-# 立即执行一次任务：python src/scheduler.py --run-now
 
 
 import os
@@ -207,3 +195,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# 启动定时调度器：python src/scheduler.py
+# 立即执行一次任务：python src/scheduler.py --run-now

@@ -221,7 +221,7 @@ def run_strategy_select(args, config):
     data_processor.process_daily_data()
     
     # 初始化策略
-    strategy = FlexStrategy(data_processor)
+    strategy = FlexStrategy(data_processor, config=config.get('strategy', {}))
     
     # 获取候选股票, 使用最近90天作为时间范围
     end_date = datetime.now().strftime('%Y-%m-%d')
@@ -258,7 +258,7 @@ def run_backtest(args, config):
     """
     
     # 设置回测参数
-    start_date = args.start_date or (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+    start_date = args.start_date or (datetime.now() - timedelta(days=365*10)).strftime('%Y-%m-%d')
     end_date = args.end_date or datetime.now().strftime('%Y-%m-%d')
     
     # 初始化组件
