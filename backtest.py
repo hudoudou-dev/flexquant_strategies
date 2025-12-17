@@ -2,48 +2,19 @@
 # -*- coding: utf-8 -*-
 
 """
-股票回测主脚本 (backtest.py)
-
-功能描述: 作为回测系统的主入口，集成数据处理、策略和回测模块，支持全市场和特定股票回测
-作者: FlexQuant Team
-创建时间: 2024-01-15
-修改时间: 2024-01-15
-修改备注: 初始版本，实现完整的回测流程和命令行支持
+@Author:            hudoudou-dev
+@Email:             humengnju@qq.com
+@Create Time:       2025-11-20
+@Last Modified:     2025-12-17
+@Modified By:       hudoudou-dev
+@Version:           1.0
+@Description:       backtesting intergface script, provide stock strategy backtesting functionality, supporting full-market backtesting and specific stock backtesting, 
+                    with calculations of return rates and trading performance metrics.
+@Notes:             none.
+@History:
+                    v1.0, create.
 """
 
-# 这个backtest.py脚本具有以下特点：
-
-# 命令行参数支持：提供多种参数选项，如时间范围、回测模式、股票代码、初始资金等
-# 配置文件集成：与config.yaml无缝集成，支持命令行参数覆盖配置文件
-# 灵活的回测模式：支持全市场回测和特定股票回测
-# 股票代码输入方式：支持通过命令行直接输入或从文件读取股票代码
-# 完整的结果可视化：提供累计收益率、最大回撤和持仓数量变化的图表
-# 详细的结果保存：保存回测摘要到CSV文件和图表到PNG文件
-# 完善的日志记录：详细记录回测过程中的关键信息和错误
-# 日期验证：确保回测日期范围合理，避免数据问题
-# 使用方法示例：
-
-# 全市场回测（最近1年）：
-
-# bash
-# python backtest.py
-# 指定时间范围的全市场回测：
-
-# bash
-# python backtest.py --start-date 2022-01-01 --end-date 2023-12-31
-# 特定股票回测：
-
-# bash
-# python backtest.py --mode stock --stock-codes 600000,600036,601318
-# 从文件读取股票代码进行回测：
-
-# bash
-# python backtest.py --mode stock --stock-file stocks.txt
-# 自定义参数并保存图表：
-
-# bash
-# python backtest.py --initial-capital 500000 --max-positions 3 --save-plot --output-dir ./results
-# 这个脚本完全基于我们之前实现的backtester.py模块，并提供了更便捷的用户接口和更丰富的结果展示功能。
 
 import os
 import sys
@@ -112,42 +83,6 @@ def load_config(config_path=None):
         }
 
 
-def parse_arguments():
-    """
-    解析命令行参数
-    
-    Returns:
-        argparse.Namespace: 解析后的参数
-    """
-    parser = argparse.ArgumentParser(description='股票策略回测系统')
-    
-    # 回测时间范围
-    parser.add_argument('--start-date', type=str, help='回测开始日期 (YYYY-MM-DD)')
-    parser.add_argument('--end-date', type=str, help='回测结束日期 (YYYY-MM-DD)')
-    
-    # 回测模式
-    parser.add_argument('--mode', type=str, choices=['market', 'stock'], default='market',
-                        help='回测模式: market(全市场回测) 或 stock(特定股票回测)')
-    
-    # 特定股票回测参数
-    parser.add_argument('--stock-codes', type=str, help='股票代码列表，逗号分隔，如: 600000,600036')
-    parser.add_argument('--stock-file', type=str, help='包含股票代码的文件路径，每行一个股票代码')
-    
-    # 资金和持仓配置
-    parser.add_argument('--initial-capital', type=float, help='初始资金')
-    parser.add_argument('--max-positions', type=int, help='最大持仓数量')
-    
-    # 输出配置
-    parser.add_argument('--output-dir', type=str, help='结果输出目录')
-    parser.add_argument('--plot', action='store_true', help='是否显示回测结果图表')
-    parser.add_argument('--save-plot', action='store_true', help='是否保存回测结果图表')
-    
-    # 配置文件
-    parser.add_argument('--config', type=str, help='配置文件路径')
-    
-    return parser.parse_args()
-
-
 def get_stock_codes(args):
     """
     获取股票代码列表
@@ -176,7 +111,6 @@ def get_stock_codes(args):
     
     # 去重
     stock_codes = list(set(stock_codes))
-    
     if not stock_codes:
         logger.warning("未指定股票代码，将使用全市场回测模式")
     else:
@@ -206,7 +140,8 @@ def validate_dates(start_date, end_date):
             sys.exit(1)
         
         # 验证日期不能太旧（最多10年）
-        min_date = datetime.now() - timedelta(days=365*10)
+        max_backtest_period = 365*5 # 最多5年内数据回测
+        min_date = datetime.now() - timedelta(days=max_backtest_period)
         if start_dt < min_date:
             logger.warning("回测开始日期较早，可能会影响数据质量")
         
@@ -259,7 +194,8 @@ def run_backtest(args, config):
         dict: 回测结果
     """
     # 设置回测参数
-    start_date = args.start_date or (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+    max_backtest_period = config.get('backtester', {}).get('max_backtest_period', 1825) # 最多5年内数据回测
+    start_date = args.start_date or (datetime.now() - timedelta(days=max_backtest_period)).strftime('%Y-%m-%d')
     end_date = args.end_date or datetime.now().strftime('%Y-%m-%d')
     start_date, end_date = validate_dates(start_date, end_date)
     
@@ -275,7 +211,12 @@ def run_backtest(args, config):
     # 初始化组件
     data_processor = DataProcessor(config=config.get('data_processor', {}))
     strategy = FlexStrategy(config=config.get('strategy', {}))
-    
+
+    # 获取股票代码（如果是特定股票回测模式）
+    stock_codes = None
+    if args.mode == 'stock':
+        stock_codes = get_stock_codes(args)
+ 
     # 创建回测器
     backtester = Backtester(
         start_date=start_date,
@@ -285,11 +226,6 @@ def run_backtest(args, config):
         strategy=strategy,
         data_processor=data_processor
     )
-    
-    # 获取股票代码（如果是特定股票回测模式）
-    stock_codes = None
-    if args.mode == 'stock':
-        stock_codes = get_stock_codes(args)
     
     # 运行回测
     results = backtester.run_backtest(stock_codes=stock_codes)
@@ -302,8 +238,7 @@ def run_backtest(args, config):
         # 绘制累计收益率
         plt.subplot(3, 1, 1)
         if hasattr(backtester, 'portfolio_history') and not backtester.portfolio_history.empty:
-            plt.plot(backtester.portfolio_history['date'],
-                    backtester.portfolio_history['total_value'] / initial_capital - 1)
+            plt.plot(backtester.portfolio_history['date'], backtester.portfolio_history['total_value'] / initial_capital - 1)
             plt.title('累计收益率')
             plt.ylabel('收益率')
             plt.grid(True)
@@ -325,7 +260,6 @@ def run_backtest(args, config):
             plt.title('持仓数量变化')
             plt.ylabel('持仓数量')
             plt.grid(True)
-        
         plt.tight_layout()
         
         # 保存图表
@@ -352,6 +286,42 @@ def run_backtest(args, config):
         logger.info(f"回测结果已保存到: {results_file}")
     
     return results
+
+
+def parse_arguments():
+    """
+    解析命令行参数
+    
+    Returns:
+        argparse.Namespace: 解析后的参数
+    """
+    parser = argparse.ArgumentParser(description='股票策略回测系统')
+    
+    # 回测时间范围
+    parser.add_argument('--start-date', type=str, help='回测开始日期 (YYYY-MM-DD)')
+    parser.add_argument('--end-date', type=str, help='回测结束日期 (YYYY-MM-DD)')
+    
+    # 回测模式
+    parser.add_argument('--mode', type=str, choices=['market', 'stock'], default='market',
+                        help='回测模式: market(全市场回测) 或 stock(特定股票回测)')
+    
+    # 特定股票回测参数
+    parser.add_argument('--stock-codes', type=str, help='股票代码列表，逗号分隔，如: 600000,600036')
+    parser.add_argument('--stock-file', type=str, help='包含股票代码的文件路径，每行一个股票代码')
+    
+    # 资金和持仓配置
+    parser.add_argument('--initial-capital', type=float, help='初始资金')
+    parser.add_argument('--max-positions', type=int, help='最大持仓数量')
+    
+    # 输出配置
+    parser.add_argument('--output-dir', type=str, help='结果输出目录')
+    parser.add_argument('--plot', action='store_true', help='是否显示回测结果图表')
+    parser.add_argument('--save-plot', action='store_true', help='是否保存回测结果图表')
+    
+    # 配置文件
+    parser.add_argument('--config', type=str, help='配置文件路径')
+    
+    return parser.parse_args()
 
 
 def main():
@@ -384,3 +354,11 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# bash
+# python backtest.py     
+# python backtest.py --start-date 2022-01-01 --end-date 2023-12-31    # 指定时间范围的全市场回测
+# python backtest.py --mode stock --stock-codes 600000,600036,601318  # 制定股票进行回测
+# python backtest.py --mode stock --stock-file stocks.txt   # 从文件读取股票代码进行回测
+# python backtest.py --initial-capital 500000 --max-positions 3 --save-plot --output-dir ./results    # 自定义参数并保存图表

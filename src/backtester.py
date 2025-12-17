@@ -5,7 +5,7 @@
 @Author:            hudoudou-dev
 @Email:             humengnju@qq.com
 @Create Time:       2025-11-20
-@Last Modified:     2025-11-20
+@Last Modified:     2025-12-17
 @Modified By:       hudoudou-dev
 @Version:           1.0
 @Description:       provide stock strategy backtesting functionality, supporting full-market backtesting and specific stock backtesting, 
@@ -92,8 +92,7 @@ class Backtester:
             stock_data = {}
             for code in stock_codes:
                 try:
-                    # df = self.data_processor.load_processed_data(code)
-                    df = self.data_processor.load_stock_data(code)
+                    df = self.data_processor.load_stock_data(stock_code=code, start_date=self.start_date, end_date=self.end_date)
                     # 过滤日期范围
                     df = df[(df['date'] >= self.start_date) & (df['date'] <= self.end_date)]
                     if not df.empty:
@@ -130,7 +129,6 @@ class Backtester:
         
         # 加载数据
         stock_data = self.load_data(stock_codes)
-        
         if not stock_data:
             logger.error("No data available for backtest")
             return None
@@ -250,7 +248,7 @@ class Backtester:
         """
         try:
             # 使用当日收盘价买入
-            price = daily_data['close']
+            price = daily_data['收盘价']
             # 计算可以买入的股数（向下取整，不考虑交易费用）
             shares = int(available_capital / price)
             
@@ -294,11 +292,11 @@ class Backtester:
         try:
             # 获取持仓信息
             position = self.positions[code]
-            shares = position['shares']
+            shares = position['shares']    # 持仓股票数量
             
             # 获取当日收盘价
             daily_data = stock_data[stock_data['date'] == date].iloc[0]
-            price = daily_data['close']
+            price = daily_data['收盘价']
             
             # 计算卖出金额
             proceeds = shares * price
@@ -344,8 +342,6 @@ class Backtester:
         for code, position in self.positions.items():
             # 尝试获取当日收盘价
             try:
-                # 在实际使用中，这里需要从数据中获取正确的价格
-                # 为简化，我们假设可以获取到
                 positions_value += position['shares'] * position['avg_price']  # 简化处理
             except:
                 positions_value += position['shares'] * position['avg_price']
@@ -368,22 +364,23 @@ class Backtester:
     
     def _calculate_performance_metrics(self):
         """
-        计算回测绩效指标
+        计算回测指标
         
         返回:
-            dict: 绩效指标字典
+            dict: 指标字典
         """
+        exchange_days_annual = 252
         if self.portfolio_history.empty:
             return {}
         
         # 基本收益指标
         final_value = self.portfolio_history['total_value'].iloc[-1]
         total_return = (final_value / self.initial_capital) - 1
-        annual_return = ((1 + total_return) ** (252 / len(self.trade_dates))) - 1
+        annual_return = ((1 + total_return) ** (exchange_days_annual / len(self.trade_dates))) - 1
         
         # 风险指标
         daily_returns = self.portfolio_history['total_value'].pct_change().dropna()
-        sharpe_ratio = np.sqrt(252) * daily_returns.mean() / daily_returns.std() if daily_returns.std() > 0 else 0
+        sharpe_ratio = np.sqrt(exchange_days_annual) * daily_returns.mean() / daily_returns.std() if daily_returns.std() > 0 else 0
         max_drawdown = (self.portfolio_history['total_value'] / self.portfolio_history['total_value'].cummax() - 1).min()
         
         # 交易统计
@@ -393,14 +390,12 @@ class Backtester:
         num_sells = len(transactions_df[transactions_df['action'] == 'SELL'])
         
         # 计算胜率
-        winning_trades = transactions_df[(transactions_df['action'] == 'SELL') & 
-                                        (transactions_df['profit'] > 0)]
+        winning_trades = transactions_df[(transactions_df['action'] == 'SELL') & (transactions_df['profit'] > 0)]
         win_rate = len(winning_trades) / num_sells if num_sells > 0 else 0
         
         # 平均收益/亏损
         avg_profit = winning_trades['profit'].mean() if not winning_trades.empty else 0
-        losing_trades = transactions_df[(transactions_df['action'] == 'SELL') & 
-                                       (transactions_df['profit'] <= 0)]
+        losing_trades = transactions_df[(transactions_df['action'] == 'SELL') & (transactions_df['profit'] <= 0)]
         avg_loss = losing_trades['profit'].mean() if not losing_trades.empty else 0
         
         metrics = {
@@ -426,10 +421,10 @@ class Backtester:
     
     def _print_performance_summary(self, metrics):
         """
-        打印回测绩效摘要
+        打印回测结果摘要
         
         参数:
-            metrics (dict): 绩效指标字典
+            metrics (dict): 回测指标字典
         """
         logger.info("\n===== Backtest Performance Summary =====")
         logger.info(f"Period: {metrics['backtest_period']}")

@@ -151,9 +151,11 @@ backtester:
   # 初始资金（元）
   initial_capital: 1000000
   # 最大持仓数量
-  max_positions: 5
+  max_stocks: 5
   # 单次交易资金比例
   position_sizing_ratio: 0.2
+  # 价格变化计算周期（天）
+  max_backtest_period: 1825 # 5年
   # 交易成本配置
   trading_costs:
     # 买入佣金（百分比）

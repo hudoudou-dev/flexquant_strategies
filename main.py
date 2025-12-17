@@ -48,8 +48,8 @@ from src.data_fetch import DataFetcher
 from src.data_processor import DataProcessor
 from src.strategy import FlexStrategy
 from src.backtester import Backtester
-from src.portfolio import PortfolioManager
 from src.scheduler import StrategyScheduler
+from src.portfolio import PortfolioManager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -106,9 +106,9 @@ def parse_arguments():
     
     # 回测模式
     backtest_parser = subparsers.add_parser('backtest', help='执行回测')
-    backtest_parser.add_argument('--start-date', type=str, help='回测开始日期 (YYYY-MM-DD)')
-    backtest_parser.add_argument('--end-date', type=str, help='回测结束日期 (YYYY-MM-DD)')
-    backtest_parser.add_argument('--stock', type=str, help='单个股票代码 (特定股票回测)')
+    backtest_parser.add_argument('--bt-start-date', type=str, help='回测开始日期 (YYYY-MM-DD)')
+    backtest_parser.add_argument('--bt-end-date', type=str, help='回测结束日期 (YYYY-MM-DD)')
+    backtest_parser.add_argument('--bt-stock', type=str, help='单个股票代码 (特定股票回测)')
     
     # 投资组合管理模式
     portfolio_parser = subparsers.add_parser('portfolio', help='管理投资组合')
@@ -258,8 +258,9 @@ def run_backtest(args, config):
     """
     
     # 设置回测参数
-    start_date = args.start_date or (datetime.now() - timedelta(days=365*10)).strftime('%Y-%m-%d')
-    end_date = args.end_date or datetime.now().strftime('%Y-%m-%d')
+    max_backtest_period = config.get('backtester', {}).get('max_backtest_period', 365*5)
+    start_date = args.bt_start_date or (datetime.now() - timedelta(days=max_backtest_period)).strftime('%Y-%m-%d')
+    end_date = args.bt_end_date or datetime.now().strftime('%Y-%m-%d')
     
     # 初始化组件
     data_processor = DataProcessor(config=config.get('data_processor', {}))
@@ -270,14 +271,15 @@ def run_backtest(args, config):
         start_date=start_date,
         end_date=end_date,
         initial_capital=config.get('backtester', {}).get('initial_capital', 1000000),
-        max_stocks=config.get('backtester', {}).get('max_positions', 5),
+        max_stocks=config.get('backtester', {}).get('max_stocks', 5),
         strategy=strategy,
         data_processor=data_processor
     )
     
     # 运行回测
-    stock_codes = [args.stock] if args.stock else None
+    stock_codes = [args.bt_stock] if args.bt_stock else None
     results = backtester.run_backtest(stock_codes=stock_codes)
+    print ("backtest results:", results)
     
     # 绘制结果
     backtester.plot_results()

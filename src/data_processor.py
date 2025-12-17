@@ -24,6 +24,9 @@ import logging
 from datetime import datetime, timedelta
 import glob
 
+# 导入数据获取器
+from data_fetch import DataFetcher
+
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('data_processor')
@@ -45,6 +48,9 @@ class DataProcessor:
         # 创建必要的目录
         os.makedirs(self.processed_data_dir, exist_ok=True)
         os.makedirs(self.portfolio_data_dir, exist_ok=True)
+        
+        # 初始化数据获取器（用于获取实时数据）
+        self.data_fetcher = DataFetcher(config)
     
     def load_stock_data(self, stock_code, start_date=None, end_date=None):
         """
@@ -351,6 +357,65 @@ class DataProcessor:
         """
         logger.info("开始处理每日数据...")
         return self.update_processed_data_daily()
+    
+    def get_latest_price(self, stock_code, use_real_time=True):
+        """
+        获取指定股票的最新收盘价
+        :param stock_code: 股票代码
+        :param use_real_time: 是否使用实时数据获取（默认为True）
+        :return: 最新收盘价(float)，如果获取失败则返回None
+        """
+        if use_real_time:
+            try:
+                # 使用实时数据获取
+                # 获取最近3天的数据，确保能拿到最新的收盘价
+                end_date = datetime.now().strftime('%Y-%m-%d')
+                start_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
+                
+                # 使用DataFetcher获取实时数据
+                df = self.data_fetcher.get_stock_history_data(stock_code, start_date, end_date)
+                
+                if df is not None and not df.empty:
+                    # 根据akshare返回的列名获取最新收盘价
+                    if '收盘价' in df.columns:
+                        # 按日期降序排序，获取最新一条记录
+                        latest_data = df.sort_values('日期', ascending=False).iloc[0]
+                        return float(latest_data['收盘'])
+                    elif 'close' in df.columns:
+                        # 按日期降序排序，获取最新一条记录
+                        latest_data = df.sort_values('日期', ascending=False).iloc[0]
+                        return float(latest_data['close'])
+                    else:
+                        logger.error(f'{stock_code} 实时数据中缺少收盘价列')
+            except Exception as e:
+                logger.error(f'使用实时数据获取 {stock_code} 最新价格失败: {e}')
+                # 如果实时获取失败，尝试使用本地数据
+                
+        # 如果不使用实时数据或实时获取失败，使用本地数据
+        df = self.load_stock_data(stock_code)
+        
+        if df is None or df.empty:
+            logger.error(f'无法获取 {stock_code} 的数据')
+            return None
+        
+        try:
+            # 确保日期列存在并按日期降序排序
+            if '日期' not in df.columns:
+                logger.error(f'{stock_code} 数据中缺少日期列')
+                return None
+            
+            # 按日期降序排序，获取最新一条记录
+            latest_data = df.sort_values('日期', ascending=False).iloc[0]
+            
+            # 获取收盘价
+            if '收盘价' not in latest_data:
+                logger.error(f'{stock_code} 数据中缺少收盘价列')
+                return None
+            
+            return float(latest_data['收盘价'])
+        except Exception as e:
+            logger.error(f'获取 {stock_code} 最新价格时出错: {e}')
+            return None
 
 
 # 测试代码
@@ -364,7 +429,7 @@ if __name__ == "__main__":
     
     # 如果有可用股票, 测试单个股票处理
     if available_stocks:
-        sample_code = available_stocks[3]
+        sample_code = available_stocks[0]
         print(f"\n测试股票: {sample_code}")
         
         # 加载股票数据
@@ -381,6 +446,10 @@ if __name__ == "__main__":
             # 计算价格变化
             price_change = processor.calculate_price_change(df)
             print(f"近90天价格变化(%): {price_change:.2f}")
+            
+            # 测试获取最新价格
+            latest_price = processor.get_latest_price(sample_code)
+            print(f"最新价格: {latest_price}")
     
     # 测试批量处理（可选)
     # results = processor.batch_process_all_stocks(save_results=False)

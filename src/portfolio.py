@@ -2,63 +2,17 @@
 # -*- coding: utf-8 -*-
 
 """
-投资组合管理模块 (Portfolio)
-
-功能描述: 管理股票投资组合，包括持仓管理、交易记录、收益计算和报告生成
-作者: FlexQuant Team
-创建时间: 2024-01-01
-修改时间: 2024-01-01
-修改备注: 初始版本
+@Author:            hudoudou-dev
+@Email:             humengnju@qq.com
+@Create Time:       2025-11-20
+@Last Modified:     2025-12-17
+@Modified By:       hudoudou-dev
+@Version:           1.0
+@Description:       manage equity investment portfolios, including position management, trade logging, performance calculation, and report generation.
+@Notes:             none.
+@History:
+                    v1.0, create.
 """
-
-
-# 核心功能:
-
-# 管理当前持仓（买入、卖出、查询）
-# 记录完整交易历史
-# 计算投资组合价值和收益率
-# 生成详细的投资组合报告
-# 支持保存和加载投资组合状态
-# 导出交易记录和投资组合历史
-# 主要类和方法:
-
-# PortfolioManager: 投资组合管理器主类
-# buy_stock(): 买入股票，更新资金和持仓
-# sell_stock(): 卖出股票，计算盈亏，更新资金和持仓
-# get_current_positions(): 获取当前持仓信息
-# get_total_portfolio_value(): 计算投资组合总价值
-# record_portfolio_state(): 记录每日投资组合状态
-# generate_portfolio_report(): 生成投资组合绩效报告
-# save_portfolio() 和 load_portfolio(): 保存和加载投资组合状态
-# 数据结构:
-
-# 持仓字典：存储每只股票的持仓信息（数量、平均价格、买入日期等）
-# 交易记录列表：记录所有买入卖出操作的详细信息
-# 投资组合历史：保存每日投资组合状态，用于回测和分析
-# 与其他模块配合:
-
-# 与 data_processor.py 配合：获取最新股价数据
-# 与 strategy.py 配合：根据策略信号执行买卖操作
-# 与 backtester.py 配合：在回测过程中管理虚拟投资组合
-# 使用方法
-# 基本使用流程:
-
-# 初始化投资组合管理器，设置初始资金
-# 调用 buy_stock() 和 sell_stock() 方法执行交易
-# 定期调用 record_portfolio_state() 记录状态
-# 使用 generate_portfolio_report() 生成绩效报告
-# 使用 save_portfolio() 保存投资组合状态
-# 绩效监控:
-
-# 通过 get_performance_summary() 获取关键绩效指标
-# 通过 generate_portfolio_report() 生成详细报告
-# 导出交易记录和历史数据进行进一步分析
-# 数据持久化:
-
-# 投资组合状态保存为JSON文件
-# 交易记录和历史数据导出为CSV文件
-# 支持从文件恢复投资组合状态
-# 这个投资组合管理模块提供了全面的功能，可以有效地管理股票投资组合，跟踪交易历史，计算绩效指标，并生成详细的报告。它可以与之前实现的回测器和策略模块无缝集成，支持完整的股票交易策略开发和回测流程。
 
 
 import os
@@ -289,6 +243,7 @@ class PortfolioManager:
                 if self.data_processor:
                     try:
                         latest_price = self.data_processor.get_latest_price(code)
+                        # latest_price = None
                         if latest_price:
                             current_price = latest_price
                         else:
@@ -597,28 +552,6 @@ class PortfolioManager:
         
         logger.info("Portfolio cleared, reset to initial state")
     
-    def export_transactions(self, file_path=None):
-        """
-        导出交易记录到CSV文件
-        
-        参数:
-            file_path (str, optional): 导出路径，默认为 'data/portfolio_data/transactions.csv'
-            
-        返回:
-            bool: 是否导出成功
-        """
-        if file_path is None:
-            file_path = 'data/portfolio_data/transactions.csv'
-        
-        try:
-            transactions_df = self.get_transaction_history()
-            transactions_df.to_csv(file_path, index=False, encoding='utf-8')
-            logger.info(f"Transactions exported to {file_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error exporting transactions: {str(e)}")
-            return False
-    
     def export_portfolio_history(self, file_path=None):
         """
         导出投资组合历史到CSV文件
@@ -645,6 +578,28 @@ class PortfolioManager:
             return True
         except Exception as e:
             logger.error(f"Error exporting portfolio history: {str(e)}")
+            return False
+
+    def export_transactions(self, file_path=None):
+        """
+        导出交易记录到CSV文件
+        
+        参数:
+            file_path (str, optional): 导出路径，默认为 'data/portfolio_data/transactions.csv'
+            
+        返回:
+            bool: 是否导出成功
+        """
+        if file_path is None:
+            file_path = 'data/portfolio_data/transactions.csv'
+        
+        try:
+            transactions_df = self.get_transaction_history()
+            transactions_df.to_csv(file_path, index=False, encoding='utf-8')
+            logger.info(f"Transactions exported to {file_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Error exporting transactions: {str(e)}")
             return False
 
 

@@ -33,3 +33,5 @@ Thumbs.db
 # 忽略配置文件中的敏感信息（如果适用）
 *.env
 config/credentials.json
+
+*.csv
