@@ -1,210 +1,93 @@
-# @Author:            hudoudou-dev
-# @Email:             humengnju@qq.com
-# @Create Time:       2025-11-20
-# @Last Modified:     2025-11-20
-# @Modified By:       hudoudou-dev
-# @Version:           1.0
-# @Description:       FlexQuant-Strategies, config.yaml
-# @History:
-#                     v1.0, create.
-
-# ========================================================
-# 调度器配置
-# ========================================================
-scheduler:
-  # 每日任务执行时间
-  daily_run_time: '20:00'
-  # 是否在启动时立即执行一次任务
-  run_on_startup: false
-  # 日志级别: DEBUG, INFO, WARNING, ERROR
-  log_level: 'INFO'
-
-# ========================================================
-# 数据获取模块配置
-# ========================================================
+backtester:
+  enable_risk_analysis: true
+  enable_visualization: true
+  initial_capital: 1000000
+  max_backtest_period: 180
+  max_stocks: 5
+  position_sizing_ratio: 0.2
+  results_dir: ../logs/backtest_results/
+  trading_costs:
+    buy_commission: 0.0003
+    sell_commission: 0.0003
+    stamp_tax: 0.001
+    transfer_fee: 2.0e-05
 data_fetch:
-  # 数据源优先级: akshare, baostock, tushare
-  primary_source: 'akshare'
-  # 备用数据源
-  backup_source: 'baostock'
-  # Tushare API配置（如需使用）
+  backup_source: baostock
+  data_dir:
+    processed: ../data/processed_data/
+    raw: ../data/raw_data/
+  duration_dates: 180
+  include_gem_stocks: true
+  include_sci_tech_board: true
+  incremental_update: true
+  max_retries: 5
+  parallel_workers: 5
+  primary_source: akshare
+  timeout: 30
   tushare_token:
     token: ''
-  # 数据保存路径
-  data_dir:
-    raw: '../data/raw_data/'
-    processed: '../data/processed_data/'
-  # 是否使用增量更新
-  incremental_update: true
-  # 重试次数
-  max_retries: 5
-  # 超时时间（秒）
-  timeout: 30
-  # 是否包含创业板股票
-  include_gem_stocks: true
-  # 是否包含科创板股票
-  include_sci_tech_board: true
-  # 默认获取10年数据
-  duration_dates: 3650
-
-# ========================================================
-# 数据处理模块配置
-# ========================================================
 data_processor:
-  # 价格数据缓存天数
-  price_data_days: 365
-  # 涨停阈值（百分比）
-  limit_up_threshold: 9.8
-  # 价格变化计算周期（天）
-  price_change_period: 90
-  # 是否过滤ST股票
-  filter_st_stocks: true
-  # 是否过滤停牌股票
-  filter_suspended_stocks: true
-  # 数据处理并行度
-  parallel_workers: 4
-  # 批量处理时每批股票数量
   batch_size: 100
-
-  # 策略选股参数
+  filter_st_stocks: true
+  filter_suspended_stocks: true
   limit_up_nums: 2
-  max_price: 50
+  limit_up_threshold: 9.8
   max_market_cap: 400.0
-  # min_price_change: null
-  # max_price_change: null
-
-
-# ========================================================
-# 策略模块配置
-# ========================================================
+  max_price: 50
+  parallel_workers: 4
+  price_change_period: 90
+  price_data_days: 180
+logging:
+  console_level: INFO
+  enable_rotation: true
+  file_level: DEBUG
+  log_dir: ../logs/
+  log_retention_days: 30
+  max_file_size_mb: 50
+portfolio:
+  auto_update: false
+  data_dir: ../data/portfolio_data/
+  performance_evaluation_days: 30
+  rebalance_triggers:
+    max_deviation: 5.0
+    min_rebalance_days: 7
+  report_format: csv
+scheduler:
+  daily_run_time: '20:00'
+  dingtalk_webhook_url: https://oapi.dingtalk.com/robot/send?access_token=cfd150e6c906183fa3b9b34fac7dbbaf4e2a4333faa8e57cd69555ab4dbfd027
+  feishu_webhook_url: https://open.feishu.cn/open-apis/bot/v2/hook/5e294809-93a2-491b-aa95-a97052042a5d
+  log_level: INFO
+  run_on_startup: false
 strategy:
-  # 选股条件
-  stock_selection:
-    # 价格上限（元）
-    max_price: 20.0
-    # 价格下限（元）
-    min_price: 10.0
-    # 市值上限（亿元）
-    max_market_cap: 500.0
-    # 最低涨停次数
-    min_limit_up_count: 2
-    # 最高涨停次数
-    max_limit_up_count: 5
-    # 涨停时间范围（天）
-    limit_up_period: 20
-    # 价格上涨幅度限制（百分比）
-    max_price_increase: 30.0
-    # 最低成交量（万股）
-    min_volume: 100.0
-    # 是否要求正盈利
-    require_profit: true
-    # 概念叠加权重（0-1之间）
-    concept_weight: 0.3
-    # 目标收益率（20%）
-    profit_target: 20.0
-    # 止损比例（10%）
-    stop_loss_ratio: 10.0
-    # 最大持股天数
-    holding_period_limit: 30
-    # 涨停阈值（百分比）
-    limit_up_threshold: 9.8
-
-
-  # 评分权重配置
   scoring_weights:
-    # 基础条件权重
     basic_conditions: 0.2
-    # 涨停模式权重
     limit_up_pattern: 0.3
-    # 价格变化权重
     price_change: 0.25
-    # 技术指标权重
     technical_indicators: 0.25
-  
-  # 卖出条件
   selling_rules:
-    # 止盈阈值（百分比）
-    take_profit_threshold: 15.0
-    # 止损阈值（百分比）
-    stop_loss_threshold: 8.0
-    # 最大持股天数
     max_holding_days: 30
-    # 止盈回落幅度（百分比）
+    stop_loss_threshold: 8.0
+    take_profit_threshold: 15.0
     trailing_stop_profit: 5.0
-  
-  # 技术指标参数
+  stock_selection:
+    concept_weight: 0.3
+    holding_period_limit: 30
+    limit_up_period: 20
+    limit_up_threshold: 9.8
+    max_limit_up_count: 5
+    max_market_cap: 100.0
+    max_price: 50.0
+    max_price_increase: 30.0
+    min_limit_up_count: 1
+    min_price: 20.0
+    min_volume: 100.0
+    profit_target: 20.0
+    require_profit: true
+    stop_loss_ratio: 10.0
   technical_indicators:
-    # RSI周期
-    rsi_period: 14
-    # MACD参数
-    macd_fast: 12
-    macd_slow: 26
-    macd_signal: 9
-    # KDJ参数
     kdj_period: 9
     kdj_slowing: 3
-
-# ========================================================
-# 回测模块配置
-# ========================================================
-backtester:
-  # 初始资金（元）
-  initial_capital: 1000000
-  # 最大持仓数量
-  max_stocks: 5
-  # 单次交易资金比例
-  position_sizing_ratio: 0.2
-  # 价格变化计算周期（天）
-  max_backtest_period: 1825 # 5年
-  # 交易成本配置
-  trading_costs:
-    # 买入佣金（百分比）
-    buy_commission: 0.0003
-    # 卖出佣金（百分比）
-    sell_commission: 0.0003
-    # 印花税（百分比，卖出时收取）
-    stamp_tax: 0.001
-    # 过户费（百分比）
-    transfer_fee: 0.00002
-  # 回测结果保存路径
-  results_dir: '../logs/backtest_results/'
-  # 是否进行风险分析
-  enable_risk_analysis: true
-  # 是否可视化结果
-  enable_visualization: true
-
-# ========================================================
-# 投资组合管理配置
-# ========================================================
-portfolio:
-  # 是否自动更新投资组合
-  auto_update: false
-  # 投资组合数据保存路径
-  data_dir: '../data/portfolio_data/'
-  # 再平衡触发条件
-  rebalance_triggers:
-    # 最大偏离度（百分比）
-    max_deviation: 5.0
-    # 最小再平衡间隔（天）
-    min_rebalance_days: 7
-  # 绩效评估频率（天）
-  performance_evaluation_days: 30
-  # 报告生成格式: csv, json, html
-  report_format: 'csv'
-
-# ========================================================
-# 日志配置
-# ========================================================
-logging:
-  # 日志目录
-  log_dir: '../logs/'
-  # 日志文件保留天数
-  log_retention_days: 30
-  # 控制台日志级别
-  console_level: 'INFO'
-  # 文件日志级别
-  file_level: 'DEBUG'
-  # 是否分割日志文件
-  enable_rotation: true
-  # 日志文件最大大小（MB）
-  max_file_size_mb: 50
+    macd_fast: 12
+    macd_signal: 9
+    macd_slow: 26
+    rsi_period: 14

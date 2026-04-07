@@ -99,15 +99,19 @@ class FlexStrategy:
                         # 过滤日期范围
                         df = df[(df['日期'] >= pd.to_datetime(start_date)) & (df['日期'] <= pd.to_datetime(end_date))]
                         if not df.empty:
-                            df = self._calculate_features(df)   # 计算额外的特征
-                            candidate_data[code] = df
+                            try:
+                                df = self._calculate_features(df)   # 计算额外的特征
+                                candidate_data[code] = df
+                            except Exception as e:
+                                logger.warning(f"Failed to calculate features for {code}: {e}")
+                                continue
                 except Exception as e:
                     logger.error(f"Error processing stock {code}: {str(e)}")
                     continue
             logger.info(f"Selected {len(candidate_data)} candidate stocks")
             return candidate_data   
-        except Exception as e:
-            logger.error(f"Error in get_candidate_stocks: {str(e)}")
+        except Exception as outer_e: # 修正 NameError
+            logger.error(f"Error in get_candidate_stocks: {str(outer_e)}")
             return {}
     
     def _calculate_features(self, df):
@@ -158,55 +162,61 @@ class FlexStrategy:
         """
         try:
             # 基础条件检查
-            # 1. 股价在20元以下
-            if daily_data['收盘价'] > self.max_price:
+            # 1. 股价区间检查
+            if not (self.min_price <= daily_data['收盘价'] <= self.max_price):
+                logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: Price {daily_data['收盘价']:.2f} not in [{self.min_price}, {self.max_price}]")
                 return False
             
-            # 2. 市值在500亿以下（如果有市值数据）
+            # 2. 市值上限检查（如果有市值数据）
             if '总市值' in daily_data and not pd.isna(daily_data['总市值']):
-                if daily_data['总市值'] / 1e8 > self.max_market_cap:
+                mkt_cap_billion = daily_data['总市值'] / 1e8 if daily_data['总市值'] > 1e6 else daily_data['总市值']
+                if mkt_cap_billion > self.max_market_cap:
+                    logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: Market Cap {mkt_cap_billion:.2f}B > {self.max_market_cap:.2f}B")
                     return False
             
-            # 3. 非亏损（如果有净利润数据）
-            if 'net_profit' in daily_data and not pd.isna(daily_data['net_profit']):
+            # 3. 盈利检查（如果有净利润数据）
+            if self.require_profit and 'net_profit' in daily_data and not pd.isna(daily_data['net_profit']):
                 if daily_data['net_profit'] < 0:
+                    logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: Net Profit < 0")
                     return False
             
-            # 4. 近三个月有2-5次涨停
+            # 4. 涨停次数检查
             if 'limit_up_count' in daily_data and not pd.isna(daily_data['limit_up_count']):
                 if not (self.min_limit_up_count <= daily_data['limit_up_count'] <= self.max_limit_up_count):
+                    logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: Limit Up Count {daily_data['limit_up_count']} not in [{self.min_limit_up_count}, {self.max_limit_up_count}]")
                     return False
-            else:
-                # 如果没有涨停计数，尝试计算
-                return False  # 为安全起见，没有足够信息时不买入
             
-            # 5. 近三个月股价涨幅不大（不超过30%）
+            # 5. 阶段涨幅检查
             if 'price_change_n_days' in daily_data and not pd.isna(daily_data['price_change_n_days']):
-                if daily_data['price_change_n_days'] > self.max_price_increase:
+                if daily_data['price_change_n_days'] > (self.max_price_increase / 100.0):
+                    logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: Price Change {daily_data['price_change_n_days']:.2%} > {self.max_price_increase/100.0:.2%}")
                     return False
             
             # 技术面条件
-            # 6. 均线多头排列（短期均线上穿长期均线）
+            # 6. 均线多头趋势（MA5 > MA20）
             if 'ma5' in daily_data and 'ma20' in daily_data and not pd.isna(daily_data['ma5']) and not pd.isna(daily_data['ma20']):
                 if daily_data['ma5'] <= daily_data['ma20']:
+                    logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: MA5 ({daily_data['ma5']:.2f}) <= MA20 ({daily_data['ma20']:.2f})")
                     return False
             
-            # 7. RSI指标在合理范围内（避免超买）
+            # 7. RSI指标（避免过热，RSI < 75）
             if 'rsi' in daily_data and not pd.isna(daily_data['rsi']):
-                if daily_data['rsi'] > 70:  # 超买区域
+                if daily_data['rsi'] > 75:
+                    logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: RSI ({daily_data['rsi']:.2f}) > 75")
                     return False
             
-            # 8. 当日成交量放大
-            if 'volume' in daily_data and 'volume' in daily_data.index:
-                # 简化处理，这里假设已经有成交量的均值
-                pass
+            # 8. 成交量检查（如果设置了最低成交量）
+            if '成交量' in daily_data and not pd.isna(daily_data['成交量']):
+                if daily_data['成交量'] < self.min_volume:
+                    logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: Volume {daily_data['成交量']:.2f} < {self.min_volume:.2f}")
+                    return False
             
             # 满足所有条件，可以买入
-            logger.debug(f"Buy signal generated for {code} on {daily_data['date']}")
+            logger.debug(f"Buy signal generated for {code} on {daily_data['日期']}")
             return True
             
         except Exception as e:
-            logger.error(f"Error in should_buy for {code}: {str(e)}")
+            logger.error(f"Error in should_buy for {code} on {daily_data['日期']}: {str(e)}")
             return False
     
     def should_sell(self, code, daily_data, position):
@@ -228,12 +238,13 @@ class FlexStrategy:
             profit_ratio = (current_price / buy_price) - 1
             
             if profit_ratio >= self.profit_target:
-                logger.debug(f"Sell signal (profit target) for {code}: {profit_ratio:.2%} >= {self.profit_target:.2%}")
+                logger.debug(f"Sell signal (profit target) for {code} on {daily_data['日期']}: {profit_ratio:.2%} >= {self.profit_target:.2%}")
                 return True
             
             # 2. 达到止损条件
-            if profit_ratio <= self.stop_loss_ratio:
-                logger.debug(f"Sell signal (stop loss) for {code}: {profit_ratio:.2%} <= {self.stop_loss_ratio:.2%}")
+            # 注意：止损比例通常是负值，例如 -0.10 表示亏损10%
+            if profit_ratio <= -abs(self.stop_loss_ratio / 100.0): # 确保止损比例为负
+                logger.debug(f"Sell signal (stop loss) for {code} on {daily_data['日期']}: {profit_ratio:.2%} <= {-abs(self.stop_loss_ratio / 100.0):.2%}")
                 return True
             
             # 3. 持股时间过长
@@ -244,26 +255,27 @@ class FlexStrategy:
             days_held = (pd.to_datetime(current_date) - pd.to_datetime(buy_date)).days
             
             if days_held >= self.holding_period_limit:
-                logger.debug(f"Sell signal (holding period) for {code}: {days_held} days >= {self.holding_period_limit} days")
+                logger.debug(f"Sell signal (holding period) for {code} on {daily_data['日期']}: {days_held} days >= {self.holding_period_limit} days")
                 return True
             
             # 4. 技术面恶化（例如均线空头排列）
             if 'ma5' in daily_data and 'ma20' in daily_data and not pd.isna(daily_data['ma5']) and not pd.isna(daily_data['ma20']):
                 if daily_data['ma5'] < daily_data['ma20']:
-                    logger.debug(f"Sell signal (technical) for {code}: MA5 < MA20")
+                    logger.debug(f"Sell signal (technical) for {code} on {daily_data['日期']}: MA5 ({daily_data['ma5']:.2f}) < MA20 ({daily_data['ma20']:.2f})")
                     return True
             
             # 5. RSI超买
             if 'rsi' in daily_data and not pd.isna(daily_data['rsi']):
                 if daily_data['rsi'] > 80:  # 强烈超买
-                    logger.debug(f"Sell signal (RSI) for {code}: RSI={daily_data['rsi']} > 80")
+                    logger.debug(f"Sell signal (RSI) for {code} on {daily_data['日期']}: RSI={daily_data['rsi']:.2f} > 80")
                     return True
             
             # 不满足卖出条件
+            logger.debug(f"No sell signal for {code} on {daily_data['日期']}")
             return False
             
         except Exception as e:
-            logger.error(f"Error in should_sell for {code}: {str(e)}")
+            logger.error(f"Error in should_sell for {code} on {daily_data['日期']}: {str(e)}")
             return False  # 出错时保守处理，不卖出
     
     def score_stock(self, code, daily_data):

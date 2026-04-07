@@ -163,25 +163,25 @@ def run_data_fetch(args, config):
         from datetime import datetime, timedelta
         if start_date is None:
             # 从config中获取duration_dates，如果不存在则使用默认值
-            duration_days = config.get('data_fetch', {}).get('duration_dates', 3650)
+            duration_days = config.get('data_fetch', {}).get('duration_dates', 180)
             start_date = (datetime.now() - timedelta(days=duration_days)).strftime('%Y-%m-%d')
         if end_date is None:
             end_date = datetime.now().strftime('%Y-%m-%d')
 
         logger.info("开始执行完整数据获取...")
-        data_fetcher.fetch_all_data(start_date, end_date)
+        data_fetcher.fetch_all_stocks_kline_datas(start_date, end_date)
     elif args.daily:
         logger.info("开始执行每日数据更新...")
-        data_fetcher.update_daily_data()
+        data_fetcher.fetch_all_stocks_kline_datas_daily_auto_update()
     elif args.incremental:
         logger.info("开始执行增量数据获取...")
-        data_fetcher.fetch_incremental_data()
+        data_fetcher.fetch_all_stocks_kline_datas_incremental()
     elif args.stocks:
         logger.info(f"开始获取指定股票数据: {', '.join(args.stocks)}")
         # 支持指定日期范围
         start_date = args.start_date if hasattr(args, 'start_date') else None
         end_date = args.end_date if hasattr(args, 'end_date') else None
-        data_fetcher.fetch_specific_stocks(args.stocks, start_date, end_date)
+        data_fetcher.fetch_all_stocks_kline_datas_specific(args.stocks, start_date, end_date)
     elif args.stock_file:
         if os.path.exists(args.stock_file):
             try:
@@ -191,7 +191,7 @@ def run_data_fetch(args, config):
                 # 支持指定日期范围
                 start_date = args.start_date if hasattr(args, 'start_date') else None
                 end_date = args.end_date if hasattr(args, 'end_date') else None
-                data_fetcher.fetch_specific_stocks(stock_codes, start_date, end_date)
+                data_fetcher.fetch_all_stocks_kline_datas_specific(stock_codes, start_date, end_date)
             except Exception as e:
                 logger.error(f"读取股票代码文件失败: {str(e)}")
         else:
@@ -258,7 +258,7 @@ def run_backtest(args, config):
     """
     
     # 设置回测参数
-    max_backtest_period = config.get('backtester', {}).get('max_backtest_period', 365*5)
+    max_backtest_period = config.get('backtester', {}).get('max_backtest_period', 180)
     start_date = args.bt_start_date or (datetime.now() - timedelta(days=max_backtest_period)).strftime('%Y-%m-%d')
     end_date = args.bt_end_date or datetime.now().strftime('%Y-%m-%d')
     

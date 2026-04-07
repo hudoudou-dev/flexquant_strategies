@@ -93,11 +93,18 @@ class Backtester:
             for code in stock_codes:
                 try:
                     df = self.data_processor.load_stock_data(stock_code=code, start_date=self.start_date, end_date=self.end_date)
+                    # 确保日期列统一
+                    if '日期' in df.columns and 'date' not in df.columns:
+                        df['date'] = df['日期']
+                    
                     # 过滤日期范围
                     df = df[(df['date'] >= self.start_date) & (df['date'] <= self.end_date)]
                     if not df.empty:
+                        # 核心修复：加载数据后必须计算策略所需的特征指标
+                        if self.strategy:
+                            df = self.strategy._calculate_features(df)
                         stock_data[code] = df
-                        logger.info(f"Loaded data for {code}, shape: {df.shape}")
+                        logger.info(f"Loaded and pre-calculated features for {code}, shape: {df.shape}")
                 except Exception as e:
                     logger.error(f"Error loading data for {code}: {str(e)}")
             return stock_data
@@ -137,8 +144,12 @@ class Backtester:
         all_dates = set()
         for code, data in stock_data.items():
             all_dates.update(data['date'].tolist())
-        sorted_dates = sorted(all_dates)
-        sorted_dates = [d for d in sorted_dates if d >= self.start_date and d <= self.end_date]
+        
+        # 统一转换为 Timestamp 进行比较，确保与 self.start_date/end_date (str) 兼容
+        start_ts = pd.to_datetime(self.start_date)
+        end_ts = pd.to_datetime(self.end_date)
+        sorted_dates = sorted([pd.to_datetime(d) for d in all_dates])
+        sorted_dates = [d for d in sorted_dates if d >= start_ts and d <= end_ts]
         
         self.trade_dates = sorted_dates
         
@@ -207,6 +218,7 @@ class Backtester:
         """
         # 如果已达到最大持仓数量，不进行买入
         if len(self.positions) >= self.max_stocks:
+            logger.debug(f"On {date}: Max stocks ({self.max_stocks}) reached, skipping buy signals.")
             return
         
         # 获取候选买入股票
@@ -214,6 +226,7 @@ class Backtester:
         for code, stock_data in daily_stocks.items():
             # 跳过已持仓的股票
             if code in self.positions:
+                logger.debug(f"On {date}: Stock {code} already in position, skipping buy signal check.")
                 continue
                 
             daily_data = stock_data[stock_data['date'] == date].iloc[0]
@@ -221,17 +234,35 @@ class Backtester:
             # 使用策略生成买入信号
             if self.strategy and self.strategy.should_buy(code, daily_data):
                 potential_buys.append((code, daily_data))
+            else:
+                logger.debug(f"On {date}: Strategy did not generate buy signal for {code}.")
         
+        if not potential_buys:
+            logger.debug(f"On {date}: No potential buys after strategy check.")
+            return
+
         # 根据策略评分排序
         potential_buys.sort(key=lambda x: self.strategy.score_stock(x[0], x[1]), reverse=True)
+        logger.debug(f"On {date}: Potential buys after scoring: {[pb[0] for pb in potential_buys]}")
         
         # 计算可用于购买每只股票的资金
-        available_capital_per_stock = self.current_capital / (self.max_stocks - len(self.positions) + 1)
+        remaining_slots = self.max_stocks - len(self.positions)
+        if remaining_slots <= 0: # Double check in case of race condition or logic error
+            logger.debug(f"On {date}: No remaining slots for buying.")
+            return
+
+        available_capital_per_stock = self.current_capital / remaining_slots
+        logger.debug(f"On {date}: Available capital per stock for {remaining_slots} slots: {available_capital_per_stock:.2f}")
         
         # 执行买入操作
         for code, daily_data in potential_buys:
             # 检查是否还有资金可用于买入
             if self.current_capital < available_capital_per_stock:
+                logger.debug(f"On {date}: Insufficient capital ({self.current_capital:.2f}) to buy more stocks (need {available_capital_per_stock:.2f} per stock). Breaking buy loop.")
+                break
+            
+            if len(self.positions) >= self.max_stocks:
+                logger.debug(f"On {date}: Max stocks ({self.max_stocks}) reached during buy loop, breaking.")
                 break
                 
             self._buy_stock(code, date, daily_data, available_capital_per_stock)
@@ -384,19 +415,27 @@ class Backtester:
         max_drawdown = (self.portfolio_history['total_value'] / self.portfolio_history['total_value'].cummax() - 1).min()
         
         # 交易统计
-        transactions_df = pd.DataFrame(self.transactions)
-        num_trades = len(transactions_df)
-        num_buys = len(transactions_df[transactions_df['action'] == 'BUY'])
-        num_sells = len(transactions_df[transactions_df['action'] == 'SELL'])
-        
-        # 计算胜率
-        winning_trades = transactions_df[(transactions_df['action'] == 'SELL') & (transactions_df['profit'] > 0)]
-        win_rate = len(winning_trades) / num_sells if num_sells > 0 else 0
-        
-        # 平均收益/亏损
-        avg_profit = winning_trades['profit'].mean() if not winning_trades.empty else 0
-        losing_trades = transactions_df[(transactions_df['action'] == 'SELL') & (transactions_df['profit'] <= 0)]
-        avg_loss = losing_trades['profit'].mean() if not losing_trades.empty else 0
+        if not self.transactions:
+            num_trades = 0
+            num_buys = 0
+            num_sells = 0
+            win_rate = 0
+            avg_profit = 0
+            avg_loss = 0
+        else:
+            transactions_df = pd.DataFrame(self.transactions)
+            num_trades = len(transactions_df)
+            num_buys = len(transactions_df[transactions_df['action'] == 'BUY'])
+            num_sells = len(transactions_df[transactions_df['action'] == 'SELL'])
+            
+            # 计算胜率
+            winning_trades = transactions_df[(transactions_df['action'] == 'SELL') & (transactions_df.get('profit', 0) > 0)]
+            win_rate = len(winning_trades) / num_sells if num_sells > 0 else 0
+            
+            # 平均收益/亏损
+            avg_profit = winning_trades['profit'].mean() if not winning_trades.empty else 0
+            losing_trades = transactions_df[(transactions_df['action'] == 'SELL') & (transactions_df.get('profit', 0) <= 0)]
+            avg_loss = losing_trades['profit'].mean() if not losing_trades.empty else 0
         
         metrics = {
             'initial_capital': self.initial_capital,

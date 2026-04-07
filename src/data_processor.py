@@ -25,7 +25,10 @@ from datetime import datetime, timedelta
 import glob
 
 # 导入数据获取器
-from data_fetch import DataFetcher
+try:
+    from src.data_fetch import DataFetcher
+except ImportError:
+    from data_fetch import DataFetcher
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -60,17 +63,39 @@ class DataProcessor:
         :param end_date: 结束日期, 格式: YYYY-MM-DD, 默认为None(加载全部)
         :return: 股票数据 DataFrame
         """
-        file_path = os.path.join(self.raw_data_dir, f'{stock_code}.csv')
+        file_path = os.path.join(self.raw_data_dir, f'{stock_code}.parquet')
         if not os.path.exists(file_path):
             logger.error(f'文件不存在: {file_path}')
             return None
         
         try:
-            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            df = pd.read_parquet(file_path)
+            
+            # 统一列名映射
+            column_mapping = {
+                '开盘': '开盘价',
+                '收盘': '收盘价',
+                '最高': '最高价',
+                '最低': '最低价',
+                'preclose': '昨收价',
+                '成交量': '成交量',
+                '成交额': '成交额',
+                '换手率': '换手率',
+                '涨跌幅': '涨跌幅',
+                '股票代码': '代码',
+                'ts_code': '代码',
+                'trade_date': '日期'
+            }
+            # 仅映射存在的列
+            existing_mapping = {k: v for k, v in column_mapping.items() if k in df.columns and v not in df.columns}
+            if existing_mapping:
+                df.rename(columns=existing_mapping, inplace=True)
             
             # 确保日期列格式正确
             if '日期' in df.columns:
-                df['日期'] = pd.to_datetime(df['日期'])
+                # Parquet 通常已经保存了 datetime 类型，但为了兼容性可以保留逻辑
+                if not pd.api.types.is_datetime64_any_dtype(df['日期']):
+                    df['日期'] = pd.to_datetime(df['日期'])
                 
                 # 按日期筛选
                 if start_date:
@@ -84,10 +109,10 @@ class DataProcessor:
     
     def get_all_available_stocks(self):
         """
-        获取所有可用的股票代码(基于已有的CSV文件)
+        获取所有可用的股票代码(基于已有的 Parquet 文件)
         :return: 股票代码列表
         """
-        stock_files = glob.glob(os.path.join(self.raw_data_dir, '*.csv'))
+        stock_files = glob.glob(os.path.join(self.raw_data_dir, '*.parquet'))
         stock_codes = [os.path.basename(f).split('.')[0] for f in stock_files]
         return sorted(stock_codes)
     
@@ -172,8 +197,14 @@ class DataProcessor:
             return False
         
         try:
+            # 自动将 .csv 后缀替换为 .parquet 如果用户提供了 .csv
+            if filename.endswith('.csv'):
+                filename = filename.replace('.csv', '.parquet')
+            elif not filename.endswith('.parquet'):
+                filename += '.parquet'
+            
             file_path = os.path.join(save_dir, filename)
-            df.to_csv(file_path, index=False, encoding='utf-8-sig')
+            df.to_parquet(file_path, index=False, compression='snappy')
             logger.info(f'数据已保存至: {file_path}')
             return True
         except Exception as e:
@@ -195,13 +226,27 @@ class DataProcessor:
             logger.error(f'无效的目录类型: {directory}')
             return None
         
-        file_path = os.path.join(load_dir, filename)
+        # 兼容性处理：优先尝试 .parquet，如果不存在尝试 .csv
+        if filename.endswith('.csv'):
+            parquet_filename = filename.replace('.csv', '.parquet')
+        else:
+            parquet_filename = filename if filename.endswith('.parquet') else filename + '.parquet'
+            
+        file_path = os.path.join(load_dir, parquet_filename)
+        
+        # 如果 parquet 不存在，尝试原文件名（可能是 csv）
+        if not os.path.exists(file_path):
+            file_path = os.path.join(load_dir, filename)
+            
         if not os.path.exists(file_path):
             logger.error(f'文件不存在: {file_path}')
             return None
 
         try:
-            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            if file_path.endswith('.parquet'):
+                df = pd.read_parquet(file_path)
+            else:
+                df = pd.read_csv(file_path, encoding='utf-8-sig')
             return df
         except Exception as e:
             logger.error(f'加载数据失败: {e}')
@@ -259,7 +304,7 @@ class DataProcessor:
         # 保存结果
         if save_results and not results_df.empty:
             timestamp = datetime.now().strftime('%Y%m%d')
-            self.save_processed_data(results_df, f'stock_metrics_summary_{timestamp}.csv')
+            self.save_processed_data(results_df, f'stock_metrics_summary_{timestamp}.parquet')
         
         logger.info(f'批量处理完成, 共处理 {len(results)} 只股票')
         return results_df
@@ -335,7 +380,7 @@ class DataProcessor:
 
                 # 保存筛选结果
                 timestamp = datetime.now().strftime('%Y%m%d')
-                self.save_processed_data(filtered_df, f'daily_filtered_stocks_{timestamp}.csv')
+                self.save_processed_data(filtered_df, f'daily_filtered_stocks_{timestamp}.parquet')
                 
                 logger.info('每日数据处理完成')
                 return True
@@ -373,7 +418,7 @@ class DataProcessor:
                 start_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
                 
                 # 使用DataFetcher获取实时数据
-                df = self.data_fetcher.get_stock_history_data(stock_code, start_date, end_date)
+                df = self.data_fetcher.get_each_stock_kline_data(stock_code, start_date, end_date)
                 
                 if df is not None and not df.empty:
                     # 根据akshare返回的列名获取最新收盘价
