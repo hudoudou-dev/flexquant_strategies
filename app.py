@@ -361,6 +361,11 @@ elif page == "Data Browser":
                 pass
 
             st.subheader(f"数据预览: {selected_file}")
+            # 按日期倒序排序，让最新数据显示在前面
+            if '日期' in df.columns:
+                df = df.sort_values('日期', ascending=False)
+            elif 'date' in df.columns:
+                df = df.sort_values('date', ascending=False)
             # 显示全部数据并支持滚动
             st.dataframe(df, use_container_width=True)
             

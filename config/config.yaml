@@ -1,74 +1,24 @@
 backtester:
-  enable_risk_analysis: true
-  enable_visualization: true
   initial_capital: 1000000
   max_backtest_period: 180
   max_stocks: 5
-  position_sizing_ratio: 0.2
-  results_dir: ../logs/backtest_results/
-  trading_costs:
-    buy_commission: 0.0003
-    sell_commission: 0.0003
-    stamp_tax: 0.001
-    transfer_fee: 2.0e-05
 data_fetch:
-  backup_source: baostock
-  data_dir:
-    processed: ../data/processed_data/
-    raw: ../data/raw_data/
   duration_dates: 180
-  include_gem_stocks: true
-  include_sci_tech_board: true
-  incremental_update: true
   max_retries: 5
   parallel_workers: 5
-  primary_source: akshare
-  timeout: 30
   tushare_token:
     token: ''
 data_processor:
-  batch_size: 100
-  filter_st_stocks: true
-  filter_suspended_stocks: true
   limit_up_nums: 2
-  limit_up_threshold: 9.8
   max_market_cap: 400.0
   max_price: 50
-  parallel_workers: 4
   price_change_period: 90
-  price_data_days: 180
-logging:
-  console_level: INFO
-  enable_rotation: true
-  file_level: DEBUG
-  log_dir: ../logs/
-  log_retention_days: 30
-  max_file_size_mb: 50
-portfolio:
-  auto_update: false
-  data_dir: ../data/portfolio_data/
-  performance_evaluation_days: 30
-  rebalance_triggers:
-    max_deviation: 5.0
-    min_rebalance_days: 7
-  report_format: csv
 scheduler:
   daily_run_time: '20:00'
   dingtalk_webhook_url: https://oapi.dingtalk.com/robot/send?access_token=cfd150e6c906183fa3b9b34fac7dbbaf4e2a4333faa8e57cd69555ab4dbfd027
   feishu_webhook_url: https://open.feishu.cn/open-apis/bot/v2/hook/5e294809-93a2-491b-aa95-a97052042a5d
-  log_level: INFO
   run_on_startup: false
 strategy:
-  scoring_weights:
-    basic_conditions: 0.2
-    limit_up_pattern: 0.3
-    price_change: 0.25
-    technical_indicators: 0.25
-  selling_rules:
-    max_holding_days: 30
-    stop_loss_threshold: 8.0
-    take_profit_threshold: 15.0
-    trailing_stop_profit: 5.0
   stock_selection:
     concept_weight: 0.3
     holding_period_limit: 30
@@ -84,10 +34,3 @@ strategy:
     profit_target: 20.0
     require_profit: true
     stop_loss_ratio: 10.0
-  technical_indicators:
-    kdj_period: 9
-    kdj_slowing: 3
-    macd_fast: 12
-    macd_signal: 9
-    macd_slow: 26
-    rsi_period: 14

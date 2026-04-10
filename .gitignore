@@ -1,8 +1,8 @@
 # 忽略logs目录下的所有文件
-/logs/
+./logs/
 
 # 保留data目录结构但忽略其中所有文件
-/data/
+./data/
 
 # 以下是Python项目的标准忽略规则（可选添加）
 __pycache__/
