@@ -62,11 +62,36 @@ class FlexStrategy:
         self.require_profit = config.get('stock_selection', {}).get('require_profit', True)  # 是否要求正盈利
         self.concept_weight = config.get('stock_selection', {}).get('concept_weight', 0.3)   # 概念叠加权重（0-1之间）
         self.limit_up_threshold = config.get('stock_selection', {}).get('limit_up_threshold', 9.8)   # 涨停阈值（百分比）
+        
+        # 技术指标参数
+        tech_config = config.get('technical_indicators', {})
+        self.ma_short_window = tech_config.get('ma_short_window', 5)
+        self.ma_medium_window = tech_config.get('ma_medium_window', 20)
+        self.ma_long_window = tech_config.get('ma_long_window', 60)
+        self.rsi_window = tech_config.get('rsi_window', 14)
+        self.rsi_overbought_threshold = tech_config.get('rsi_overbought_threshold', 75)
+        self.rsi_severe_overbought_threshold = tech_config.get('rsi_severe_overbought_threshold', 80)
+        self.rsi_ideal_range_min = tech_config.get('rsi_ideal_range_min', 40)
+        self.rsi_ideal_range_max = tech_config.get('rsi_ideal_range_max', 60)
+        self.rsi_normal_range_min = tech_config.get('rsi_normal_range_min', 30)
+        self.rsi_normal_range_max = tech_config.get('rsi_normal_range_max', 70)
+        
+        # 评分权重参数
+        scoring_config = config.get('scoring_weights', {})
+        self.price_factor_weight = scoring_config.get('price_factor_weight', 20)
+        self.market_cap_factor_weight = scoring_config.get('market_cap_factor_weight', 15)
+        self.limit_up_factor_weight = scoring_config.get('limit_up_factor_weight', 30)
+        self.price_change_factor_weight = scoring_config.get('price_change_factor_weight', 20)
+        self.ma_bullish_weight = scoring_config.get('ma_bullish_weight', 15)
+        self.ma_partial_bullish_weight = scoring_config.get('ma_partial_bullish_weight', 10)
+        self.rsi_ideal_weight = scoring_config.get('rsi_ideal_weight', 10)
+        self.rsi_normal_weight = scoring_config.get('rsi_normal_weight', 5)
 
         logger.info(f"Strategy initialized with parameters:")
         logger.info(f"  max_price: {self.max_price}, max_market_cap: {self.max_market_cap}")
         logger.info(f"  max_price_increase: {self.max_price_increase}, profit_target: {self.profit_target}")
         logger.info(f"  stop_loss_ratio: {self.stop_loss_ratio}, holding_period_limit: {self.holding_period_limit} days")
+        logger.info(f"  technical_indicators: MA({self.ma_short_window},{self.ma_medium_window},{self.ma_long_window}), RSI({self.rsi_window})")
     
     def get_candidate_stocks(self, start_date, end_date):
         """
@@ -126,7 +151,11 @@ class FlexStrategy:
         """
         df_new = df.copy()
 
-        # 计算涨停标记（涨幅>=9.8%认为是涨停）
+        # 确保有date列（兼容中文列名）
+        if '日期' in df_new.columns and 'date' not in df_new.columns:
+            df_new['date'] = df_new['日期']
+
+        # 计算涨停标记（涨幅>=涨停阈值认为是涨停）
         df_new.loc[:, 'is_limit_up'] = (df_new['收盘价'].pct_change() * 100.0) >= self.limit_up_threshold
         
         # 计算N日内涨停次数
@@ -136,14 +165,14 @@ class FlexStrategy:
         df_new.loc[:, 'price_change_n_days'] = df_new['收盘价'] / df_new['收盘价'].shift(self.limit_up_period) - 1
 
         # 计算移动平均线
-        df_new.loc[:, 'ma5'] = df_new['收盘价'].rolling(window=5).mean()
-        df_new.loc[:, 'ma20'] = df_new['收盘价'].rolling(window=20).mean()
-        df_new.loc[:, 'ma60'] = df_new['收盘价'].rolling(window=60).mean()
+        df_new.loc[:, 'ma5'] = df_new['收盘价'].rolling(window=self.ma_short_window).mean()
+        df_new.loc[:, 'ma20'] = df_new['收盘价'].rolling(window=self.ma_medium_window).mean()
+        df_new.loc[:, 'ma60'] = df_new['收盘价'].rolling(window=self.ma_long_window).mean()
         
         # 计算相对强弱指标（简化版）
         delta = df_new['收盘价'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        gain = (delta.where(delta > 0, 0)).rolling(window=self.rsi_window).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=self.rsi_window).mean()
         rs = gain / loss
         df_new.loc[:, 'rsi'] = 100 - (100 / (1 + rs))
         
@@ -193,16 +222,17 @@ class FlexStrategy:
                     return False
             
             # 技术面条件
-            # 6. 均线多头趋势（MA5 > MA20）
+            # 6. 均线趋势（放宽条件：MA5接近MA20或刚刚金叉）
             if 'ma5' in daily_data and 'ma20' in daily_data and not pd.isna(daily_data['ma5']) and not pd.isna(daily_data['ma20']):
-                if daily_data['ma5'] <= daily_data['ma20']:
-                    logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: MA5 ({daily_data['ma5']:.2f}) <= MA20 ({daily_data['ma20']:.2f})")
+                # 放宽条件：MA5 >= MA20 * 0.95（允许5%的误差）
+                if daily_data['ma5'] < daily_data['ma20'] * 0.95:
+                    logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: MA5 ({daily_data['ma5']:.2f}) < MA20 * 0.95 ({daily_data['ma20'] * 0.95:.2f})")
                     return False
             
-            # 7. RSI指标（避免过热，RSI < 75）
+            # 7. RSI指标（避免过热，RSI < 超买阈值）
             if 'rsi' in daily_data and not pd.isna(daily_data['rsi']):
-                if daily_data['rsi'] > 75:
-                    logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: RSI ({daily_data['rsi']:.2f}) > 75")
+                if daily_data['rsi'] > self.rsi_overbought_threshold:
+                    logger.debug(f"Buy condition failed for {code} on {daily_data['日期']}: RSI ({daily_data['rsi']:.2f}) > {self.rsi_overbought_threshold}")
                     return False
             
             # 8. 成交量检查（如果设置了最低成交量）
@@ -258,16 +288,17 @@ class FlexStrategy:
                 logger.debug(f"Sell signal (holding period) for {code} on {daily_data['日期']}: {days_held} days >= {self.holding_period_limit} days")
                 return True
             
-            # 4. 技术面恶化（例如均线空头排列）
+            # 4. 技术面恶化（放宽条件：MA5明显低于MA20才卖出）
             if 'ma5' in daily_data and 'ma20' in daily_data and not pd.isna(daily_data['ma5']) and not pd.isna(daily_data['ma20']):
-                if daily_data['ma5'] < daily_data['ma20']:
-                    logger.debug(f"Sell signal (technical) for {code} on {daily_data['日期']}: MA5 ({daily_data['ma5']:.2f}) < MA20 ({daily_data['ma20']:.2f})")
+                # 放宽条件：MA5 < MA20 * 0.90（下跌10%才卖出）
+                if daily_data['ma5'] < daily_data['ma20'] * 0.90:
+                    logger.debug(f"Sell signal (technical) for {code} on {daily_data['日期']}: MA5 ({daily_data['ma5']:.2f}) < MA20 * 0.90 ({daily_data['ma20'] * 0.90:.2f})")
                     return True
             
             # 5. RSI超买
             if 'rsi' in daily_data and not pd.isna(daily_data['rsi']):
-                if daily_data['rsi'] > 80:  # 强烈超买
-                    logger.debug(f"Sell signal (RSI) for {code} on {daily_data['日期']}: RSI={daily_data['rsi']:.2f} > 80")
+                if daily_data['rsi'] > self.rsi_severe_overbought_threshold:  # 强烈超买
+                    logger.debug(f"Sell signal (RSI) for {code} on {daily_data['日期']}: RSI={daily_data['rsi']:.2f} > {self.rsi_severe_overbought_threshold}")
                     return True
             
             # 不满足卖出条件
@@ -295,44 +326,44 @@ class FlexStrategy:
             # 1. 基础条件评分
             # 价格因素（价格越低，评分越高）
             if daily_data['收盘价'] <= self.max_price:
-                score += (1 - daily_data['收盘价'] / self.max_price) * 20
+                score += (1 - daily_data['收盘价'] / self.max_price) * self.price_factor_weight
             
             # 市值因素（如果有数据）
             if '总市值' in daily_data and not pd.isna(daily_data['总市值']):
-                market_cap_score = max(0, 1 - daily_data['总市值'] / 1e8 / self.max_market_cap) * 15
+                market_cap_score = max(0, 1 - daily_data['总市值'] / 1e8 / self.max_market_cap) * self.market_cap_factor_weight
                 score += market_cap_score
             
             # 2. 涨停模式评分
             if 'limit_up_count' in daily_data and not pd.isna(daily_data['limit_up_count']):
                 # 涨停次数在理想范围内给予高分
                 if self.min_limit_up_count <= daily_data['limit_up_count'] <= self.max_limit_up_count:
-                    score += 30
+                    score += self.limit_up_factor_weight
                 elif daily_data['limit_up_count'] > self.max_limit_up_count:
                     # 涨停次数过多，可能已经过热
-                    score += max(0, 30 - (daily_data['limit_up_count'] - self.max_limit_up_count) * 10)
+                    score += max(0, self.limit_up_factor_weight - (daily_data['limit_up_count'] - self.max_limit_up_count) * 10)
             
             # 3. 价格变化评分
             if 'price_change_n_days' in daily_data and not pd.isna(daily_data['price_change_n_days']):
                 # 涨幅适中给予高分，涨幅过大可能过热
                 if daily_data['price_change_n_days'] <= self.max_price_increase:
-                    score += (1 - daily_data['price_change_n_days'] / self.max_price_increase) * 20
+                    score += (1 - daily_data['price_change_n_days'] / self.max_price_increase) * self.price_change_factor_weight
             
             # 4. 技术面评分
             # 均线排列
             if 'ma5' in daily_data and 'ma20' in daily_data and 'ma60' in daily_data and \
                not pd.isna(daily_data['ma5']) and not pd.isna(daily_data['ma20']) and not pd.isna(daily_data['ma60']):
                 if daily_data['ma5'] > daily_data['ma20'] > daily_data['ma60']:
-                    score += 15
+                    score += self.ma_bullish_weight
                 elif daily_data['ma5'] > daily_data['ma20']:
-                    score += 10
+                    score += self.ma_partial_bullish_weight
             
             # RSI指标
             if 'rsi' in daily_data and not pd.isna(daily_data['rsi']):
-                # RSI在40-60之间是较为理想的状态
-                if 40 <= daily_data['rsi'] <= 60:
-                    score += 10
-                elif 30 <= daily_data['rsi'] < 40 or 60 < daily_data['rsi'] <= 70:
-                    score += 5
+                # RSI在理想范围内是较为理想的状态
+                if self.rsi_ideal_range_min <= daily_data['rsi'] <= self.rsi_ideal_range_max:
+                    score += self.rsi_ideal_weight
+                elif self.rsi_normal_range_min <= daily_data['rsi'] < self.rsi_ideal_range_min or self.rsi_ideal_range_max < daily_data['rsi'] <= self.rsi_normal_range_max:
+                    score += self.rsi_normal_weight
             
             # 5. 成交量评分（如果有数据）
             if '成交量' in daily_data and '成交量' in daily_data.index:

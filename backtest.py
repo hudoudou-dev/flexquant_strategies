@@ -201,12 +201,28 @@ def run_backtest(args, config):
     
     initial_capital = args.initial_capital or config.get('backtester', {}).get('initial_capital', 1000000)
     max_positions = args.max_positions or config.get('backtester', {}).get('max_positions', 5)
+    warm_up_period = config.get('backtester', {}).get('warm_up_period', 0)
+    cold_start_strategy = config.get('backtester', {}).get('cold_start_strategy', 'empty')
+    
+    # 仓位管理参数
+    min_buy_score = config.get('backtester', {}).get('min_buy_score', 0)
+    score_thresholds = config.get('backtester', {}).get('score_thresholds', {})
+    position_management = config.get('backtester', {}).get('position_management', {})
     
     logger.info(f"回测参数设置:")
     logger.info(f"- 时间范围: {start_date} 到 {end_date}")
     logger.info(f"- 初始资金: {initial_capital} 元")
     logger.info(f"- 最大持仓数: {max_positions} 只")
     logger.info(f"- 回测模式: {'全市场' if args.mode == 'market' else '特定股票'}")
+    if warm_up_period > 0:
+        logger.info(f"- 预热期: {warm_up_period} 交易日")
+        logger.info(f"- 冷启动策略: {cold_start_strategy}")
+    if min_buy_score > 0:
+        logger.info(f"- 最低买入评分: {min_buy_score}")
+    if position_management.get('enable_dynamic_position', False):
+        logger.info(f"- 动态仓位管理: 已启用")
+        logger.info(f"  - 最大仓位比例: {position_management.get('max_position_ratio', 0.95):.0%}")
+        logger.info(f"  - 最小现金比例: {position_management.get('min_cash_ratio', 0.05):.0%}")
     
     # 初始化组件
     data_processor = DataProcessor(config=config.get('data_processor', {}))
@@ -224,7 +240,12 @@ def run_backtest(args, config):
         initial_capital=initial_capital,
         max_stocks=max_positions,
         strategy=strategy,
-        data_processor=data_processor
+        data_processor=data_processor,
+        warm_up_period=warm_up_period,
+        cold_start_strategy=cold_start_strategy,
+        min_buy_score=min_buy_score,
+        score_thresholds=score_thresholds,
+        position_management=position_management
     )
     
     # 运行回测

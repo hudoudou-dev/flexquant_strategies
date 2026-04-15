@@ -151,7 +151,23 @@ elif page == "Data Management":
             st.info("获取指定股票代码列表的数据。股票代码为必填项。")
 
     if strategy_type == "fetch_all_stocks_kline_datas_specific":
-        stock_input = st.text_input("输入股票代码（例如：000001, 600000, 000002）", "")
+        input_type = st.radio(
+            "股票代码输入方式",
+            ["手动输入", "从stock_list.txt文件读取"]
+        )
+        
+        if input_type == "手动输入":
+            stock_input = st.text_input("输入股票代码（例如：000001, 600000, 000002）", "")
+        else:
+            stock_file = os.path.join("data", "stock_list.txt")
+            if os.path.exists(stock_file):
+                with open(stock_file, 'r', encoding='utf-8') as f:
+                    stock_codes_from_file = [line.strip() for line in f if line.strip()]
+                st.info(f"从stock_list.txt文件读取到 {len(stock_codes_from_file)} 只股票")
+                st.text_area("读取到的股票代码", value=', '.join(stock_codes_from_file), height=100)
+            else:
+                st.error("stock_list.txt文件不存在，请先创建该文件")
+        
         start_date = st.date_input("开始日期", value=datetime.now() - timedelta(days=180))
         end_date = st.date_input("结束日期", value=datetime.now())
     
@@ -172,14 +188,29 @@ elif page == "Data Management":
                     st.success(f"成功获取 {count} 只股票的全部数据。")
                 
                 elif strategy_type == "fetch_all_stocks_kline_datas_specific":
-                    if not stock_input:
-                        st.error("请输入至少一个股票代码。")
+                    if input_type == "手动输入":
+                        if not stock_input:
+                            st.error("请输入至少一个股票代码。")
+                        else:
+                            codes = [c.strip() for c in stock_input.split(',')]
+                            count = fetcher.fetch_all_stocks_kline_datas_specific(codes, 
+                                                                start_date=start_date.strftime('%Y-%m-%d'),
+                                                                end_date=end_date.strftime('%Y-%m-%d'))
+                            st.success(f"成功获取 {count} 只股票的数据。")
                     else:
-                        codes = [c.strip() for c in stock_input.split(',')]
-                        count = fetcher.fetch_all_stocks_kline_datas_specific(codes, 
-                                                            start_date=start_date.strftime('%Y-%m-%d'),
-                                                            end_date=end_date.strftime('%Y-%m-%d'))
-                        st.success(f"成功获取 {count} 只股票的数据。")
+                        stock_file = os.path.join("data", "stock_list.txt")
+                        if os.path.exists(stock_file):
+                            with open(stock_file, 'r', encoding='utf-8') as f:
+                                stock_codes_from_file = [line.strip() for line in f if line.strip()]
+                            if not stock_codes_from_file:
+                                st.error("stock_list.txt文件为空，请添加股票代码。")
+                            else:
+                                count = fetcher.fetch_all_stocks_kline_datas_specific(stock_codes_from_file, 
+                                                                    start_date=start_date.strftime('%Y-%m-%d'),
+                                                                    end_date=end_date.strftime('%Y-%m-%d'))
+                                st.success(f"成功获取 {count} 只股票的数据。")
+                        else:
+                            st.error("stock_list.txt文件不存在，请先创建该文件")
         except Exception as e:
             st.error(f"执行策略时发生错误: {e}")
 
@@ -474,10 +505,124 @@ elif page == "Configuration":
             config['strategy']['stock_selection']['limit_up_period'] = st.number_input("涨停统计周期 (天)", value=int(config['strategy']['stock_selection'].get('limit_up_period', 20)))
             config['strategy']['stock_selection']['require_profit'] = st.checkbox("要求盈利 (Require Profit)", config['strategy']['stock_selection'].get('require_profit', True))
         
+        # Scoring Weights Configuration
+        st.header("评分权重配置")
+        st.info("调整各因子在股票评分中的权重。权重总和应接近100。")
+        
+        scoring_weights = config['strategy'].get('scoring_weights', {})
+        col_w1, col_w2, col_w3 = st.columns(3)
+        
+        with col_w1:
+            scoring_weights['price_factor_weight'] = st.slider("价格因子权重", 0, 50, int(scoring_weights.get('price_factor_weight', 20)), key="price_weight")
+            scoring_weights['market_cap_factor_weight'] = st.slider("市值因子权重", 0, 50, int(scoring_weights.get('market_cap_factor_weight', 15)), key="market_cap_weight")
+        
+        with col_w2:
+            scoring_weights['limit_up_factor_weight'] = st.slider("涨停因子权重", 0, 50, int(scoring_weights.get('limit_up_factor_weight', 30)), key="limit_up_weight")
+            scoring_weights['price_change_factor_weight'] = st.slider("价格变化因子权重", 0, 50, int(scoring_weights.get('price_change_factor_weight', 20)), key="price_change_weight")
+        
+        with col_w3:
+            scoring_weights['ma_bullish_weight'] = st.slider("均线多头权重", 0, 30, int(scoring_weights.get('ma_bullish_weight', 15)), key="ma_bullish_weight")
+            scoring_weights['rsi_ideal_weight'] = st.slider("RSI理想权重", 0, 30, int(scoring_weights.get('rsi_ideal_weight', 10)), key="rsi_ideal_weight")
+        
+        config['strategy']['scoring_weights'] = scoring_weights
+        
+        # 显示权重总和
+        total_weight = sum(scoring_weights.values())
+        if 90 <= total_weight <= 110:
+            st.success(f"权重总和: {total_weight} (合理范围)")
+        else:
+            st.warning(f"权重总和: {total_weight} (建议调整至90-110之间)")
+        
         submitted = st.form_submit_button("保存配置")
         if submitted:
             save_config(config)
             st.success("配置保存成功！")
+    
+    # Parameter Optimization Section (outside form)
+    st.header("参数自动优化")
+    st.info("基于历史回测数据自动寻找最优评分权重参数。优化完成后，新参数将自动填充到上方配置中。")
+    
+    opt_col1, opt_col2 = st.columns(2)
+    with opt_col1:
+        optimization_method = st.selectbox(
+            "优化方法",
+            ["grid_search", "random_search"],
+            index=0,
+            help="grid_search: 网格搜索，穷举所有组合; random_search: 随机搜索，快速采样"
+        )
+        optimization_period = st.number_input(
+            "优化周期 (交易日)",
+            min_value=30,
+            max_value=365,
+            value=180,
+            help="基于过去多少天的历史数据进行优化"
+        )
+    
+    with opt_col2:
+        n_samples = st.number_input(
+            "随机采样数量",
+            min_value=10,
+            max_value=1000,
+            value=100,
+            help="仅随机搜索时有效"
+        )
+        st.write("")  # 占位
+        st.write("")  # 占位
+    
+    # 优化按钮
+    if st.button("🚀 开始参数自动优化", type="primary"):
+        with st.spinner("正在进行参数优化，请耐心等待..."):
+            try:
+                from optimize_parameters import ParameterOptimizer
+                
+                # 创建优化器
+                optimizer = ParameterOptimizer(config_path=CONFIG_PATH)
+                
+                # 更新优化配置
+                optimizer.optimization_config['optimization_method'] = optimization_method
+                optimizer.optimization_config['optimization_period'] = optimization_period
+                
+                # 执行优化
+                best_weights = optimizer.optimize()
+                
+                if best_weights:
+                    st.success("✅ 参数优化完成！")
+                    
+                    # 显示最优结果
+                    st.subheader("最优参数")
+                    result_col1, result_col2 = st.columns(2)
+                    
+                    with result_col1:
+                        st.write("**最优权重配置:**")
+                        for key, value in best_weights.items():
+                            st.write(f"- {key}: {value}")
+                    
+                    with result_col2:
+                        st.write("**优化结果:**")
+                        if optimizer.results:
+                            best_result = max(optimizer.results, key=lambda x: x['score'])
+                            st.write(f"- 年化收益率: {best_result['annual_return']*100:.2f}%")
+                            st.write(f"- 最大回撤: {best_result['max_drawdown']*100:.2f}%")
+                            st.write(f"- 夏普比率: {best_result['sharpe_ratio']:.2f}")
+                    
+                    # 自动填充到配置
+                    st.info("最优参数已计算完成，请点击上方'保存配置'按钮应用新参数。")
+                    
+                    # 更新config中的权重
+                    config['strategy']['scoring_weights'].update(best_weights)
+                    
+                    # 保存到session state
+                    st.session_state['optimized_weights'] = best_weights
+                    
+                    # 强制刷新页面以显示新参数
+                    st.rerun()
+                else:
+                    st.error("参数优化失败，请检查日志。")
+                    
+            except Exception as e:
+                st.error(f"优化过程出错: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
 
 elif page == "Service Management":
     st.title("Service Management")

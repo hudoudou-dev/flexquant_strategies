@@ -46,7 +46,12 @@ class Backtester:
                  initial_capital=1000000, 
                  max_stocks=5,
                  strategy=None, 
-                 data_processor=None):
+                 data_processor=None,
+                 warm_up_period=0,
+                 cold_start_strategy='empty',
+                 min_buy_score=0,
+                 score_thresholds=None,
+                 position_management=None):
         """
         初始化回测器
         
@@ -57,6 +62,11 @@ class Backtester:
             max_stocks (int): 最大持仓股票数量
             strategy: 策略对象，包含生成买卖信号的方法
             data_processor: 数据处理器对象，用于获取数据
+            warm_up_period (int): 预热期天数，预热期内不进行交易
+            cold_start_strategy (str): 冷启动策略，'empty'或'random'
+            min_buy_score (float): 最低买入评分阈值
+            score_thresholds (dict): 评分阈值与仓位比例映射
+            position_management (dict): 仓位管理配置
         """
         self.start_date = start_date
         self.end_date = end_date
@@ -65,15 +75,74 @@ class Backtester:
         self.max_stocks = max_stocks
         self.strategy = strategy
         self.data_processor = data_processor
+        self.warm_up_period = warm_up_period
+        self.cold_start_strategy = cold_start_strategy
+        
+        # 仓位管理参数
+        self.min_buy_score = min_buy_score
+        self.score_thresholds = score_thresholds or {'excellent': 80, 'good': 70, 'fair': 60}
+        self.position_management = position_management or {
+            'enable_dynamic_position': False,
+            'max_position_ratio': 0.95,
+            'min_cash_ratio': 0.05
+        }
         
         # 回测结果存储
         self.portfolio_history = pd.DataFrame()
         self.transactions = []
         self.positions = {}
         self.trade_dates = []
+        self.warm_up_end_date = None  # 预热期结束日期
         
         # 确保结果目录存在
         os.makedirs('data/portfolio_data', exist_ok=True)
+    
+    def _get_position_ratio_by_score(self, score):
+        """
+        根据股票评分计算建议的仓位比例
+        
+        参数:
+            score (float): 股票评分
+            
+        返回:
+            float: 建议的仓位比例（0-1之间）
+        """
+        if score >= self.score_thresholds.get('excellent', 80):
+            return 1.0  # 全仓
+        elif score >= self.score_thresholds.get('good', 70):
+            return 0.5  # 半仓
+        elif score >= self.score_thresholds.get('fair', 60):
+            return 0.3  # 轻仓
+        else:
+            return 0.0  # 不买入
+    
+    def _calculate_max_available_capital(self):
+        """
+        计算当前可用于买入的最大资金
+        
+        返回:
+            float: 可用资金上限
+        """
+        if not self.position_management.get('enable_dynamic_position', False):
+            return self.current_capital
+        
+        # 计算当前持仓价值
+        positions_value = sum(
+            pos['shares'] * pos['avg_price'] 
+            for pos in self.positions.values()
+        )
+        
+        total_value = self.current_capital + positions_value
+        max_position_value = total_value * self.position_management.get('max_position_ratio', 0.95)
+        min_cash = total_value * self.position_management.get('min_cash_ratio', 0.05)
+        
+        # 可用资金 = 最大持仓价值 - 当前持仓价值，但不能超过当前现金 - 最小现金
+        available = min(
+            max_position_value - positions_value,
+            self.current_capital - min_cash
+        )
+        
+        return max(0, available)
     
     def load_data(self, stock_codes=None):
         """
@@ -128,6 +197,9 @@ class Backtester:
         """
         logger.info(f"Starting backtest from {self.start_date} to {self.end_date}")
         logger.info(f"Initial capital: {self.initial_capital}, Max stocks: {self.max_stocks}")
+        if self.warm_up_period > 0:
+            logger.info(f"Warm-up period: {self.warm_up_period} trading days")
+            logger.info(f"Cold start strategy: {self.cold_start_strategy}")
         
         # 重置回测状态
         self.current_capital = self.initial_capital
@@ -153,10 +225,29 @@ class Backtester:
         
         self.trade_dates = sorted_dates
         
+        # 计算预热期结束日期
+        if self.warm_up_period > 0 and len(sorted_dates) > self.warm_up_period:
+            self.warm_up_end_date = sorted_dates[self.warm_up_period - 1]
+            logger.info(f"Warm-up period ends on: {self.warm_up_end_date}")
+            logger.info(f"Actual trading starts from: {sorted_dates[self.warm_up_period]}")
+        else:
+            self.warm_up_end_date = None
+            if self.warm_up_period > 0:
+                logger.warning(f"Warm-up period ({self.warm_up_period}) exceeds available trading days ({len(sorted_dates)}), no warm-up applied")
+        
         # 逐天执行回测
-        for date in sorted_dates:
-            self._execute_daily_trading(date, stock_data)
-            self._record_portfolio_state(date)
+        for idx, date in enumerate(sorted_dates):
+            # 检查是否在预热期内
+            is_warm_up = self.warm_up_period > 0 and idx < self.warm_up_period
+            
+            if is_warm_up:
+                # 预热期内只记录状态，不进行交易
+                logger.debug(f"Warm-up day {idx + 1}/{self.warm_up_period}: {date}, no trading")
+                self._record_portfolio_state(date)
+            else:
+                # 正式交易期
+                self._execute_daily_trading(date, stock_data)
+                self._record_portfolio_state(date)
         
         # 生成回测报告
         results = self._calculate_performance_metrics()
@@ -233,7 +324,21 @@ class Backtester:
             
             # 使用策略生成买入信号
             if self.strategy and self.strategy.should_buy(code, daily_data):
-                potential_buys.append((code, daily_data))
+                # 计算股票评分
+                score = self.strategy.score_stock(code, daily_data)
+                
+                # 评分阈值过滤
+                if score < self.min_buy_score:
+                    logger.debug(f"On {date}: Stock {code} score {score:.2f} < min_buy_score {self.min_buy_score}, skipping.")
+                    continue
+                
+                # 计算建议仓位比例
+                position_ratio = self._get_position_ratio_by_score(score)
+                if position_ratio <= 0:
+                    logger.debug(f"On {date}: Stock {code} score {score:.2f} too low for any position, skipping.")
+                    continue
+                
+                potential_buys.append((code, daily_data, score, position_ratio))
             else:
                 logger.debug(f"On {date}: Strategy did not generate buy signal for {code}.")
         
@@ -241,33 +346,34 @@ class Backtester:
             logger.debug(f"On {date}: No potential buys after strategy check.")
             return
 
-        # 根据策略评分排序
-        potential_buys.sort(key=lambda x: self.strategy.score_stock(x[0], x[1]), reverse=True)
-        logger.debug(f"On {date}: Potential buys after scoring: {[pb[0] for pb in potential_buys]}")
+        # 根据评分排序（评分高的优先）
+        potential_buys.sort(key=lambda x: x[2], reverse=True)
+        logger.debug(f"On {date}: Potential buys after scoring: {[(pb[0], pb[2]) for pb in potential_buys]}")
         
-        # 计算可用于购买每只股票的资金
-        remaining_slots = self.max_stocks - len(self.positions)
-        if remaining_slots <= 0: # Double check in case of race condition or logic error
-            logger.debug(f"On {date}: No remaining slots for buying.")
-            return
-
-        available_capital_per_stock = self.current_capital / remaining_slots
-        logger.debug(f"On {date}: Available capital per stock for {remaining_slots} slots: {available_capital_per_stock:.2f}")
+        # 计算可用于购买的最大资金
+        max_available_capital = self._calculate_max_available_capital()
+        logger.debug(f"On {date}: Max available capital: {max_available_capital:.2f}")
         
         # 执行买入操作
-        for code, daily_data in potential_buys:
-            # 检查是否还有资金可用于买入
-            if self.current_capital < available_capital_per_stock:
-                logger.debug(f"On {date}: Insufficient capital ({self.current_capital:.2f}) to buy more stocks (need {available_capital_per_stock:.2f} per stock). Breaking buy loop.")
-                break
-            
+        for code, daily_data, score, position_ratio in potential_buys:
+            # 检查是否还有持仓空位
             if len(self.positions) >= self.max_stocks:
                 logger.debug(f"On {date}: Max stocks ({self.max_stocks}) reached during buy loop, breaking.")
                 break
-                
-            self._buy_stock(code, date, daily_data, available_capital_per_stock)
+            
+            # 计算该股票的可用资金（考虑仓位比例）
+            remaining_slots = self.max_stocks - len(self.positions)
+            base_capital_per_stock = max_available_capital / remaining_slots
+            adjusted_capital = base_capital_per_stock * position_ratio
+            
+            # 检查是否有足够资金
+            if self.current_capital < adjusted_capital:
+                logger.debug(f"On {date}: Insufficient capital ({self.current_capital:.2f}) for {code} (need {adjusted_capital:.2f}), skipping.")
+                continue
+            
+            self._buy_stock(code, date, daily_data, adjusted_capital, score, position_ratio)
     
-    def _buy_stock(self, code, date, daily_data, available_capital):
+    def _buy_stock(self, code, date, daily_data, available_capital, score=0, position_ratio=1.0):
         """
         买入股票
         
@@ -276,6 +382,8 @@ class Backtester:
             date (str): 交易日期
             daily_data (pd.Series): 当日股票数据
             available_capital (float): 可用于购买的资金
+            score (float): 股票评分
+            position_ratio (float): 仓位比例
         """
         try:
             # 使用当日收盘价买入
@@ -290,7 +398,9 @@ class Backtester:
                 self.positions[code] = {
                     'shares': shares,
                     'avg_price': price,
-                    'buy_date': date
+                    'buy_date': date,
+                    'score': score,
+                    'position_ratio': position_ratio
                 }
                 
                 # 更新资金
@@ -304,10 +414,12 @@ class Backtester:
                     'price': price,
                     'shares': shares,
                     'amount': cost,
+                    'score': score,
+                    'position_ratio': position_ratio,
                     'remaining_capital': self.current_capital
                 })
                 
-                logger.info(f"BUY {code} on {date}: {shares} shares at {price:.2f}, cost: {cost:.2f}")
+                logger.info(f"BUY {code} on {date}: {shares} shares at {price:.2f}, cost: {cost:.2f}, score: {score:.2f}, position_ratio: {position_ratio:.0%}")
         except Exception as e:
             logger.error(f"Error buying {code} on {date}: {str(e)}")
     
@@ -450,7 +562,10 @@ class Backtester:
             'win_rate': win_rate,
             'avg_profit': avg_profit,
             'avg_loss': avg_loss,
-            'backtest_period': f"{self.start_date} to {self.end_date}"
+            'backtest_period': f"{self.start_date} to {self.end_date}",
+            'warm_up_period': self.warm_up_period,
+            'warm_up_end_date': str(self.warm_up_end_date) if self.warm_up_end_date else None,
+            'actual_trading_days': len(self.trade_dates) - self.warm_up_period if self.warm_up_period > 0 else len(self.trade_dates)
         }
         
         # 打印关键指标
@@ -465,19 +580,30 @@ class Backtester:
         参数:
             metrics (dict): 回测指标字典
         """
-        logger.info("\n===== Backtest Performance Summary =====")
+        logger.info("\n" + "="*50)
+        logger.info("Backtest Performance Summary")
+        logger.info("="*50)
         logger.info(f"Period: {metrics['backtest_period']}")
+        
+        # 显示预热期信息
+        if metrics['warm_up_period'] > 0:
+            logger.info(f"Warm-up Period: {metrics['warm_up_period']} trading days")
+            logger.info(f"Warm-up Ends: {metrics['warm_up_end_date']}")
+            logger.info(f"Actual Trading Days: {metrics['actual_trading_days']}")
+        
+        logger.info("-"*50)
         logger.info(f"Initial Capital: ¥{metrics['initial_capital']:,.2f}")
         logger.info(f"Final Capital: ¥{metrics['final_capital']:,.2f}")
         logger.info(f"Total Return: {metrics['total_return']*100:.2f}%")
         logger.info(f"Annual Return: {metrics['annual_return']*100:.2f}%")
         logger.info(f"Sharpe Ratio: {metrics['sharpe_ratio']:.2f}")
         logger.info(f"Maximum Drawdown: {metrics['max_drawdown']*100:.2f}%")
+        logger.info("-"*50)
         logger.info(f"Number of Trades: {metrics['num_trades']}")
         logger.info(f"Win Rate: {metrics['win_rate']*100:.2f}%")
         logger.info(f"Average Profit per Winning Trade: ¥{metrics['avg_profit']:.2f}")
         logger.info(f"Average Loss per Losing Trade: ¥{metrics['avg_loss']:.2f}")
-        logger.info("======================================\n")
+        logger.info("="*50 + "\n")
     
     def _save_results(self):
         """

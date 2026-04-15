@@ -138,13 +138,14 @@ class DataProcessor:
         
         # 计算涨跌幅列, 如果没有则尝试从其他列计算
         if '涨跌幅' in recent_data.columns:
-            # 涨停条件：涨跌幅 >= 9.8%（考虑到四舍五入)
+            # 涨停条件：涨跌幅 >= 涨停阈值（考虑到四舍五入)
             limit_up_threshold = self.config.get("limit_up_threshold", 9.8)
             limit_up_days = len(recent_data[recent_data['涨跌幅'] >= limit_up_threshold])
         elif '收盘价' in recent_data.columns and '开盘价' in recent_data.columns:
             # 计算涨跌幅
+            limit_up_threshold = self.config.get("limit_up_threshold", 9.8)
             recent_data['涨跌幅计算'] = (recent_data['收盘价'] - recent_data['开盘价']) / recent_data['开盘价'] * 100
-            limit_up_days = len(recent_data[recent_data['涨跌幅计算'] >= 9.8])
+            limit_up_days = len(recent_data[recent_data['涨跌幅计算'] >= limit_up_threshold])
         else:
             logger.warning('无法计算涨跌幅, 缺少必要的价格数据')
             limit_up_days = 0
@@ -329,16 +330,19 @@ class DataProcessor:
             logger.warning('输入数据为空, 无法筛选')
             return pd.DataFrame()
         
+        # 获取价格变化周期
+        price_change_period = self.config.get('price_change_period', 90) if self.config else 90
+        
         # 创建筛选条件
-        mask = (stock_metrics_df[f'{90}天涨停次数'] >= limit_up_nums) & \
+        mask = (stock_metrics_df[f'{price_change_period}天涨停次数'] >= limit_up_nums) & \
                (stock_metrics_df['最新价格'] <= max_price)
         
         # 添加价格变化条件
         if min_price_change is not None:
-            mask &= (stock_metrics_df[f'{90}天价格变化(%)'] >= min_price_change)
+            mask &= (stock_metrics_df[f'{price_change_period}天价格变化(%)'] >= min_price_change)
         
         if max_price_change is not None:
-            mask &= (stock_metrics_df[f'{90}天价格变化(%)'] <= max_price_change)
+            mask &= (stock_metrics_df[f'{price_change_period}天价格变化(%)'] <= max_price_change)
         
         # 应用筛选
         filtered_df = stock_metrics_df[mask].copy()
@@ -349,7 +353,7 @@ class DataProcessor:
         
         # 按涨停次数和价格变化排序
         if not filtered_df.empty:
-            filtered_df.sort_values([f'{90}天涨停次数', f'{90}天价格变化(%)'], 
+            filtered_df.sort_values([f'{price_change_period}天涨停次数', f'{price_change_period}天价格变化(%)'], 
                                    ascending=[False, True], inplace=True)
         
         logger.info(f'筛选完成, 符合条件的股票有 {len(filtered_df)} 只')

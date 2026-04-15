@@ -1,36 +1,109 @@
 backtester:
+  cold_start_strategy: empty
   initial_capital: 1000000
   max_backtest_period: 180
   max_stocks: 5
+  min_buy_score: 60
+  position_management:
+    enable_dynamic_position: true
+    market_adjustment:
+      bear_market: 0.5
+      bull_market: 1.0
+      normal_market: 0.8
+    max_position_ratio: 0.95
+    min_cash_ratio: 0.05
+  score_thresholds:
+    excellent: 80
+    fair: 60
+    good: 70
+  warm_up_period: 60
 data_fetch:
+  backup_source: baostock
   duration_dates: 180
+  include_gem_stocks: true
+  include_sci_tech_board: true
+  incremental_update: true
   max_retries: 5
   parallel_workers: 5
+  primary_source: akshare
   tushare_token:
     token: ''
 data_processor:
+  filter_st_stocks: true
+  filter_suspended_stocks: true
   limit_up_nums: 2
+  limit_up_threshold: 9.8
   max_market_cap: 400.0
   max_price: 50
+  max_price_change: null
+  min_price_change: null
+  parallel_workers: 5
   price_change_period: 90
+  price_data_days: 180
 scheduler:
   daily_run_time: '20:00'
-  dingtalk_webhook_url: https://oapi.dingtalk.com/robot/send?access_token=cfd150e6c906183fa3b9b34fac7dbbaf4e2a4333faa8e57cd69555ab4dbfd027
-  feishu_webhook_url: https://open.feishu.cn/open-apis/bot/v2/hook/5e294809-93a2-491b-aa95-a97052042a5d
+  dingtalk_webhook_url: xxxx
+  feishu_webhook_url: xxxx
+  log_level: INFO
   run_on_startup: false
 strategy:
+  scoring_optimization:
+    adjustment_period: 30
+    enable_dynamic_adjustment: false
+    enable_optimization: false
+    optimization_method: grid_search
+    optimization_period: 180
+    weight_search_ranges:
+      limit_up_factor_weight:
+      - 20
+      - 40
+      ma_bullish_weight:
+      - 10
+      - 20
+      market_cap_factor_weight:
+      - 5
+      - 25
+      price_change_factor_weight:
+      - 10
+      - 30
+      price_factor_weight:
+      - 10
+      - 30
+      rsi_ideal_weight:
+      - 5
+      - 15
+  scoring_weights:
+    limit_up_factor_weight: 20
+    ma_bullish_weight: 13
+    ma_partial_bullish_weight: 10
+    market_cap_factor_weight: 15
+    price_change_factor_weight: 20
+    price_factor_weight: 18
+    rsi_ideal_weight: 8
+    rsi_normal_weight: 5
   stock_selection:
     concept_weight: 0.3
-    holding_period_limit: 30
-    limit_up_period: 20
+    holding_period_limit: 60
+    limit_up_period: 30
     limit_up_threshold: 9.8
-    max_limit_up_count: 5
-    max_market_cap: 100.0
-    max_price: 50.0
-    max_price_increase: 30.0
-    min_limit_up_count: 1
+    max_limit_up_count: 10
+    max_market_cap: 300.0
+    max_price: 100.0
+    max_price_increase: 50.0
+    min_limit_up_count: 0
     min_price: 20.0
     min_volume: 100.0
-    profit_target: 20.0
+    profit_target: 30.0
     require_profit: true
-    stop_loss_ratio: 10.0
+    stop_loss_ratio: 15.0
+  technical_indicators:
+    ma_long_window: 60
+    ma_medium_window: 20
+    ma_short_window: 5
+    rsi_ideal_range_max: 60
+    rsi_ideal_range_min: 40
+    rsi_normal_range_max: 70
+    rsi_normal_range_min: 30
+    rsi_overbought_threshold: 75
+    rsi_severe_overbought_threshold: 80
+    rsi_window: 14
